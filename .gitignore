@@ -3,4 +3,6 @@
 secrets/
 target/
 node_modules/
+dist/
+*.tsbuildinfo
 .env
