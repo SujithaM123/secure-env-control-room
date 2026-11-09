@@ -1,6 +1,6 @@
 *.secret
 .env.local
-secrets/
+/secrets/
 target/
 node_modules/
 dist/
