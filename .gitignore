@@ -1,0 +1,6 @@
+*.secret
+.env.local
+secrets/
+target/
+node_modules/
+.env
