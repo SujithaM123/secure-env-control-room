@@ -7,8 +7,10 @@ it must follow. Read this before writing any backend code.
 
 - Java 17, Spring Boot 3.x
 - Dependencies: `spring-boot-starter-web`, `spring-boot-starter-actuator`,
-  `spring-boot-starter-data-jpa`, `postgresql` driver, `software.amazon.awssdk:secretsmanager`
+  `spring-boot-starter-data-jpa`, `com.mysql:mysql-connector-j`, and
+  `software.amazon.awssdk:secretsmanager`
 - Build tool: Maven
+- Database: **MySQL** (local via Docker, AWS RDS MySQL for Dev/Test/Prod)
 
 ## Package layout
 
@@ -40,9 +42,9 @@ app:
   version: ${APP_VERSION:dev-local}
   log-level: ${LOG_LEVEL:INFO}
 db:
-  url: ${DB_URL}
+  url: ${DB_URL}                       # e.g. jdbc:mysql://dev-db.cap48.internal:3306/app_dev
   username: ${DB_USERNAME}
-  secret-ref: ${DB_SECRET_REF}        # e.g. "/prod/app/db-password" (AWS) or
+  secret-ref: ${DB_SECRET_REF}         # e.g. "/prod/app/db-password" (AWS) or
                                         # a file path (local dev) — never a password
 secrets:
   provider: ${SECRETS_PROVIDER:file}   # "file" locally, "aws" in dev/test/prod
@@ -80,11 +82,19 @@ secrets:
 
 ## Local development
 
-- `docker-compose.yml` (local only, not deployed) starts a Postgres
+- `docker-compose.yml` (local only, not deployed) starts a **MySQL**
   container with a **fake** password stored in `secrets/local-db.secret`
   (git-ignored).
 - `SECRETS_PROVIDER=file` and `DB_SECRET_REF=./secrets/local-db.secret` in
   a local `.env` file (also git-ignored).
+- `DB_URL=jdbc:mysql://localhost:3306/app_local`
+- You can inspect the local database with **MySQL Workbench**, connecting
+  to `localhost:3306` with the fake local credentials only. Never connect
+  MySQL Workbench directly to the Dev/Test/Prod RDS instances with a real
+  password typed in by hand — that defeats the whole point of secret
+  handling. If you ever need to inspect Dev/Test/Prod data, do it through a
+  short-lived credential fetched by a script, not a password typed into a
+  GUI tool and left saved there.
 - Developers never need AWS credentials to run the app locally.
 
 ## What NOT to do
@@ -96,3 +106,6 @@ secrets:
 - Do not add a debug/test endpoint that echoes config or environment
   variables wholesale (it could leak `DB_SECRET_REF` paths, which is lower
   risk than a password but should still be avoided).
+- Do not save a Dev/Test/Prod database password inside MySQL Workbench's
+  saved-connections list — that is itself a form of "hard-coded secret,"
+  just stored in a GUI tool instead of in code.

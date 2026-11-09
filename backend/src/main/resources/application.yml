@@ -1,0 +1,36 @@
+app:
+  env-name: ${APP_ENV:local}
+  version: ${APP_VERSION:dev-local}
+  log-level: ${LOG_LEVEL:INFO}
+
+db:
+  url: ${DB_URL}
+  username: ${DB_USERNAME}
+  secret-ref: ${DB_SECRET_REF}         # AWS Secrets Manager path, or a local file path — never a password
+
+secrets:
+  provider: ${SECRETS_PROVIDER:file}   # "file" locally, "aws" in dev/test/prod
+
+spring:
+  jpa:
+    open-in-view: false
+    hibernate:
+      ddl-auto: validate
+    properties:
+      hibernate:
+        format_sql: false
+  datasource:
+    driver-class-name: com.mysql.cj.jdbc.Driver
+
+management:
+  endpoints:
+    web:
+      exposure:
+        include: health,info
+  endpoint:
+    health:
+      show-details: when-authorized
+
+logging:
+  level:
+    root: ${app.log-level}
