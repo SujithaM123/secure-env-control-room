@@ -36,7 +36,7 @@ from scan_secrets import line_has_finding  # noqa: E402
 REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
 
-DB_SECRET_REF_PATTERN = re.compile(r"^(dev|test|prod)/app/[a-z0-9-]+$")
+REF_PATTERN = re.compile(r"^(dev|test|prod)/app/[a-z0-9-]+$")
 
 REQUIRED_KEYS = [
     "APP_ENV",
@@ -90,7 +90,7 @@ def run_checks(environment: str, lines: list[str]) -> list[tuple[bool, str]]:
     db_secret_ref = values.get("DB_SECRET_REF", "").strip()
     checks.append(
         (
-            bool(DB_SECRET_REF_PATTERN.match(db_secret_ref)),
+            bool(REF_PATTERN.match(db_secret_ref)),
             "DB_SECRET_REF is a Secrets Manager reference (<env>/app/<name>)",
         )
     )
