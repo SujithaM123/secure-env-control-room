@@ -11,7 +11,7 @@ env:
   AWS_REGION: ap-south-1
   DEPLOY_ROLE_ARN: arn:aws:iam::662904411409:role/github-actions-deploy-role
   DEPLOY_BUCKET: secure-env-control-room-sujitha-2026
-  EB_APPLICATION_NAME: secure-env-control-room
+  EB_APPLICATION_NAME: ecure-env-control-room
 
 permissions:
   id-token: write
