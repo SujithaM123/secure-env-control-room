@@ -104,7 +104,6 @@ jobs:
     name: Deploy Dev
     needs: build
     runs-on: ubuntu-latest
-    environment: dev
     permissions:
       id-token: write
       contents: read
@@ -156,7 +155,6 @@ jobs:
     name: Deploy Test
     needs: deploy-dev
     runs-on: ubuntu-latest
-    environment: test
     permissions:
       id-token: write
       contents: read
@@ -208,7 +206,6 @@ jobs:
     name: Deploy Prod
     needs: deploy-test
     runs-on: ubuntu-latest
-    environment: prod
     permissions:
       id-token: write
       contents: read
