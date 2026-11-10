@@ -144,11 +144,33 @@ jobs:
             --version-label "${{ github.sha }}" \
             --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/dev/${{ github.sha }}.zip"
 
+      - name: Build EB environment properties
+        run: |
+          python3 - "config/dev.env" <<'EOF' > option-settings.json
+          import sys, json, os
+          settings = []
+          with open(sys.argv[1]) as f:
+              for line in f:
+                  line = line.strip()
+                  if not line or line.startswith('#') or '=' not in line:
+                      continue
+                  key, _, value = line.partition('=')
+                  if key == "APP_VERSION":
+                      value = os.environ.get("GITHUB_SHA", "")[:7]
+                  settings.append({
+                      "Namespace": "aws:elasticbeanstalk:application:environment",
+                      "OptionName": key,
+                      "Value": value
+                  })
+          json.dump(settings, sys.stdout)
+          EOF
+
       - name: Deploy to Dev
         run: |
           aws elasticbeanstalk update-environment \
             --environment-name "${{ env.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}"
+            --version-label "${{ github.sha }}" \
+            --option-settings file://option-settings.json
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${{ env.EB_ENV_NAME }}"
 
@@ -204,11 +226,33 @@ jobs:
             --version-label "${{ github.sha }}" \
             --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/test/${{ github.sha }}.zip"
 
+      - name: Build EB environment properties
+        run: |
+          python3 - "config/test.env" <<'EOF' > option-settings.json
+          import sys, json, os
+          settings = []
+          with open(sys.argv[1]) as f:
+              for line in f:
+                  line = line.strip()
+                  if not line or line.startswith('#') or '=' not in line:
+                      continue
+                  key, _, value = line.partition('=')
+                  if key == "APP_VERSION":
+                      value = os.environ.get("GITHUB_SHA", "")[:7]
+                  settings.append({
+                      "Namespace": "aws:elasticbeanstalk:application:environment",
+                      "OptionName": key,
+                      "Value": value
+                  })
+          json.dump(settings, sys.stdout)
+          EOF
+
       - name: Deploy to Test
         run: |
           aws elasticbeanstalk update-environment \
             --environment-name "${{ env.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}"
+            --version-label "${{ github.sha }}" \
+            --option-settings file://option-settings.json
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${{ env.EB_ENV_NAME }}"
 
@@ -264,11 +308,33 @@ jobs:
             --version-label "${{ github.sha }}" \
             --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/prod/${{ github.sha }}.zip"
 
+      - name: Build EB environment properties
+        run: |
+          python3 - "config/prod.env" <<'EOF' > option-settings.json
+          import sys, json, os
+          settings = []
+          with open(sys.argv[1]) as f:
+              for line in f:
+                  line = line.strip()
+                  if not line or line.startswith('#') or '=' not in line:
+                      continue
+                  key, _, value = line.partition('=')
+                  if key == "APP_VERSION":
+                      value = os.environ.get("GITHUB_SHA", "")[:7]
+                  settings.append({
+                      "Namespace": "aws:elasticbeanstalk:application:environment",
+                      "OptionName": key,
+                      "Value": value
+                  })
+          json.dump(settings, sys.stdout)
+          EOF
+
       - name: Deploy to Prod
         run: |
           aws elasticbeanstalk update-environment \
             --environment-name "${{ env.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}"
+            --version-label "${{ github.sha }}" \
+            --option-settings file://option-settings.json
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${{ env.EB_ENV_NAME }}"
 
