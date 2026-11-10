@@ -411,3 +411,23 @@ jobs:
 
       - name: Verify Prod deployment
         run: python scripts/verify.py "${{ env.VERIFY_URL }}" prod
+
+  final-leak-check:
+    name: Final Leak Check
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout full history
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - name: Scan full git history for leaked secrets
+        run: |
+          MATCHES=$(git log --all -p | grep -ciE "AKIA[0-9A-Z]{16}|BEGIN (RSA|EC|OPENSSH|PRIVATE) KEY|password[[:space:]]*=[[:space:]]*['\"][^'\"]{4,}['\"]" || true)
+          echo "Match count: $MATCHES"
+          if [ "$MATCHES" -gt 0 ]; then
+            echo "::error::Potential secret(s) found somewhere in git history. Do not print details here — clone locally to investigate."
+            exit 1
+          else
+            echo "Clean — no secret-like patterns found anywhere in full git history."
+          fi
