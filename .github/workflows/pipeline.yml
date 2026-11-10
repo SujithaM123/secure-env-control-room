@@ -151,10 +151,20 @@ jobs:
 
       - name: Create Elastic Beanstalk application version
         run: |
-          aws elasticbeanstalk create-application-version \
+          VERSION_LABEL="${{ github.sha }}-dev"
+          existing=$(aws elasticbeanstalk describe-application-versions \
             --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-label "${{ github.sha }}" \
-            --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/dev/${{ github.sha }}.zip"
+            --version-labels "$VERSION_LABEL" \
+            --query "length(ApplicationVersions)" --output text)
+          if [ "$existing" = "0" ]; then
+            aws elasticbeanstalk create-application-version \
+              --application-name "${{ env.EB_APPLICATION_NAME }}" \
+              --version-label "$VERSION_LABEL" \
+              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/dev/${{ github.sha }}.zip"
+          else
+            echo "Application version $VERSION_LABEL already exists, reusing it."
+          fi
+          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
 
       - name: Build EB environment properties
         run: |
@@ -181,7 +191,7 @@ jobs:
         run: |
           aws elasticbeanstalk update-environment \
             --environment-name "${{ env.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}" \
+            --version-label "${{ env.VERSION_LABEL }}" \
             --option-settings file://option-settings.json
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${{ env.EB_ENV_NAME }}"
@@ -245,10 +255,20 @@ jobs:
 
       - name: Create Elastic Beanstalk application version
         run: |
-          aws elasticbeanstalk create-application-version \
+          VERSION_LABEL="${{ github.sha }}-test"
+          existing=$(aws elasticbeanstalk describe-application-versions \
             --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-label "${{ github.sha }}" \
-            --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/test/${{ github.sha }}.zip"
+            --version-labels "$VERSION_LABEL" \
+            --query "length(ApplicationVersions)" --output text)
+          if [ "$existing" = "0" ]; then
+            aws elasticbeanstalk create-application-version \
+              --application-name "${{ env.EB_APPLICATION_NAME }}" \
+              --version-label "$VERSION_LABEL" \
+              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/test/${{ github.sha }}.zip"
+          else
+            echo "Application version $VERSION_LABEL already exists, reusing it."
+          fi
+          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
 
       - name: Build EB environment properties
         run: |
@@ -275,7 +295,7 @@ jobs:
         run: |
           aws elasticbeanstalk update-environment \
             --environment-name "${{ env.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}" \
+            --version-label "${{ env.VERSION_LABEL }}" \
             --option-settings file://option-settings.json
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${{ env.EB_ENV_NAME }}"
@@ -339,10 +359,20 @@ jobs:
 
       - name: Create Elastic Beanstalk application version
         run: |
-          aws elasticbeanstalk create-application-version \
+          VERSION_LABEL="${{ github.sha }}-prod"
+          existing=$(aws elasticbeanstalk describe-application-versions \
             --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-label "${{ github.sha }}" \
-            --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/prod/${{ github.sha }}.zip"
+            --version-labels "$VERSION_LABEL" \
+            --query "length(ApplicationVersions)" --output text)
+          if [ "$existing" = "0" ]; then
+            aws elasticbeanstalk create-application-version \
+              --application-name "${{ env.EB_APPLICATION_NAME }}" \
+              --version-label "$VERSION_LABEL" \
+              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/prod/${{ github.sha }}.zip"
+          else
+            echo "Application version $VERSION_LABEL already exists, reusing it."
+          fi
+          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
 
       - name: Build EB environment properties
         run: |
@@ -369,7 +399,7 @@ jobs:
         run: |
           aws elasticbeanstalk update-environment \
             --environment-name "${{ env.EB_ENV_NAME }}" \
-            --version-label "${{ github.sha }}" \
+            --version-label "${{ env.VERSION_LABEL }}" \
             --option-settings file://option-settings.json
           aws elasticbeanstalk wait environment-updated \
             --environment-names "${{ env.EB_ENV_NAME }}"
