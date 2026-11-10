@@ -8,6 +8,14 @@ on:
 env:
   PYTHON_VERSION: "3.12"
   IMAGE_NAME: secure-env-control-room
+  AWS_REGION: ap-south-1
+  DEPLOY_ROLE_ARN: arn:aws:iam::662904411409:role/github-actions-deploy-role
+  DEPLOY_BUCKET: secure-env-control-room-sujitha-2026
+  EB_APPLICATION_NAME: secure-env-control-room
+
+permissions:
+  id-token: write
+  contents: read
 
 jobs:
   scan:
@@ -96,28 +104,154 @@ jobs:
     name: Deploy Dev
     needs: build
     runs-on: ubuntu-latest
+    environment: dev
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      EB_ENV_NAME: cap48-dev
+      VERIFY_URL: http://cap48-dev.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
     steps:
-      - name: Deploy to Dev (placeholder)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create deployment bundle
+        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
+
+      - name: Upload bundle to S3
         run: |
-          echo "Would inject config/dev.env and deploy image ${{ env.IMAGE_NAME }}:${{ github.sha }} to Dev"
-          # TODO: replace with real AWS deploy once Secrets Manager + Elastic Beanstalk are set up
+          aws s3 cp "deploy-${{ github.sha }}.zip" \
+            "s3://${{ env.DEPLOY_BUCKET }}/deploys/dev/${{ github.sha }}.zip"
+
+      - name: Create Elastic Beanstalk application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name "${{ env.EB_APPLICATION_NAME }}" \
+            --version-label "${{ github.sha }}" \
+            --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/dev/${{ github.sha }}.zip"
+
+      - name: Deploy to Dev
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name "${{ env.EB_ENV_NAME }}" \
+            --version-label "${{ github.sha }}"
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "${{ env.EB_ENV_NAME }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify Dev deployment
+        run: python scripts/verify.py "${{ env.VERIFY_URL }}" dev
 
   deploy-test:
     name: Deploy Test
     needs: deploy-dev
     runs-on: ubuntu-latest
+    environment: test
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      EB_ENV_NAME: cap48-test
+      VERIFY_URL: http://cap48-test.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
     steps:
-      - name: Deploy to Test (placeholder)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create deployment bundle
+        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
+
+      - name: Upload bundle to S3
         run: |
-          echo "Would inject config/test.env and deploy image ${{ env.IMAGE_NAME }}:${{ github.sha }} to Test"
-          # TODO: replace with real AWS deploy once Secrets Manager + Elastic Beanstalk are set up
+          aws s3 cp "deploy-${{ github.sha }}.zip" \
+            "s3://${{ env.DEPLOY_BUCKET }}/deploys/test/${{ github.sha }}.zip"
+
+      - name: Create Elastic Beanstalk application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name "${{ env.EB_APPLICATION_NAME }}" \
+            --version-label "${{ github.sha }}" \
+            --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/test/${{ github.sha }}.zip"
+
+      - name: Deploy to Test
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name "${{ env.EB_ENV_NAME }}" \
+            --version-label "${{ github.sha }}"
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "${{ env.EB_ENV_NAME }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify Test deployment
+        run: python scripts/verify.py "${{ env.VERIFY_URL }}" test
 
   deploy-prod:
     name: Deploy Prod
     needs: deploy-test
     runs-on: ubuntu-latest
+    environment: prod
+    permissions:
+      id-token: write
+      contents: read
+    env:
+      EB_ENV_NAME: cap48-prod
+      VERIFY_URL: http://cap48-prod.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
     steps:
-      - name: Deploy to Prod (placeholder)
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Create deployment bundle
+        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
+
+      - name: Upload bundle to S3
         run: |
-          echo "Would inject config/prod.env and deploy image ${{ env.IMAGE_NAME }}:${{ github.sha }} to Prod"
-          # TODO: replace with real AWS deploy once Secrets Manager + Elastic Beanstalk are set up
+          aws s3 cp "deploy-${{ github.sha }}.zip" \
+            "s3://${{ env.DEPLOY_BUCKET }}/deploys/prod/${{ github.sha }}.zip"
+
+      - name: Create Elastic Beanstalk application version
+        run: |
+          aws elasticbeanstalk create-application-version \
+            --application-name "${{ env.EB_APPLICATION_NAME }}" \
+            --version-label "${{ github.sha }}" \
+            --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/prod/${{ github.sha }}.zip"
+
+      - name: Deploy to Prod
+        run: |
+          aws elasticbeanstalk update-environment \
+            --environment-name "${{ env.EB_ENV_NAME }}" \
+            --version-label "${{ github.sha }}"
+          aws elasticbeanstalk wait environment-updated \
+            --environment-names "${{ env.EB_ENV_NAME }}"
+
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: ${{ env.PYTHON_VERSION }}
+
+      - name: Verify Prod deployment
+        run: python scripts/verify.py "${{ env.VERIFY_URL }}" prod
