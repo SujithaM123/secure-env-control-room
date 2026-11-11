@@ -274,7 +274,7 @@ jobs:
 
   deploy-test:
     name: Deploy Test
-    needs: deploy-dev
+    needs: [deploy-dev, package]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -345,7 +345,7 @@ jobs:
 
   deploy-prod:
     name: Deploy Prod
-    needs: deploy-test
+    needs: [deploy-test, package]
     runs-on: ubuntu-latest
     permissions:
       id-token: write
