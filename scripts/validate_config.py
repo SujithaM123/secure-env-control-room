@@ -14,6 +14,8 @@ What it does:
     format (not a literal secret), AUDIT_DB_URL/AUDIT_DB_USERNAME/
     AUDIT_DB_SECRET_REF being present and well-formed (the shared audit
     database connection, identical across all three environments),
+    WRITE_API_KEY_SECRET_REF being present and well-formed (this
+    environment's own write-API key, like DB_SECRET_REF),
     and — as a second, independent check — that no line in the file
     matches the same hardcoded-secret pattern scan_secrets.py looks for
     (config files should only ever hold references).
@@ -51,6 +53,7 @@ REQUIRED_KEYS = [
     "AUDIT_DB_URL",
     "AUDIT_DB_USERNAME",
     "AUDIT_DB_SECRET_REF",
+    "WRITE_API_KEY_SECRET_REF",
     "SECRETS_PROVIDER",
 ]
 
@@ -111,6 +114,14 @@ def run_checks(environment: str, lines: list[str]) -> list[tuple[bool, str]]:
         (
             bool(AUDIT_REF_PATTERN.match(audit_db_secret_ref)),
             "AUDIT_DB_SECRET_REF is a Secrets Manager reference (shared/app/<name>)",
+        )
+    )
+
+    write_api_key_secret_ref = values.get("WRITE_API_KEY_SECRET_REF", "").strip()
+    checks.append(
+        (
+            bool(REF_PATTERN.match(write_api_key_secret_ref)),
+            "WRITE_API_KEY_SECRET_REF is a Secrets Manager reference (<env>/app/<name>)",
         )
     )
 

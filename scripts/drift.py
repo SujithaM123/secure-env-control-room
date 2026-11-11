@@ -8,8 +8,9 @@ What it does:
     Reads config/dev.env, config/test.env, and config/prod.env, and
     compares every pair of environments (dev<->test, test<->prod,
     dev<->prod). Keys on the allowed-to-differ list (DB_URL,
-    DB_USERNAME, LOG_LEVEL, APP_ENV, APP_VERSION, DB_SECRET_REF) are
-    expected to vary and are skipped. Anything else that differs —
+    DB_USERNAME, LOG_LEVEL, APP_ENV, APP_VERSION, DB_SECRET_REF,
+    WRITE_API_KEY_SECRET_REF) are expected to vary and are skipped.
+    Anything else that differs —
     including a key that exists in one environment's file but is
     entirely missing from another's, which is flagged as the more
     serious case — is unexpected drift.
@@ -50,6 +51,8 @@ ALLOWED_TO_DIFFER = {
     # Each environment points at its own Secrets Manager path, same as it
     # has its own DB_URL/DB_USERNAME — expected to differ, not drift.
     "DB_SECRET_REF",
+    # Same reasoning — each environment has its own write-API key.
+    "WRITE_API_KEY_SECRET_REF",
 }
 
 MISSING = object()

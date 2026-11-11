@@ -14,6 +14,20 @@ pages see all three environments at once. Each environment's own
 (`DB_URL`/`DB_USERNAME`/`DB_SECRET_REF` vs. `AUDIT_DB_URL`/
 `AUDIT_DB_USERNAME`/`AUDIT_DB_SECRET_REF` in `config/<env>.env`).
 
+## Who writes to it
+
+Nothing seeds these tables ahead of time — `environments` and the other 7
+tables are populated only by 5 write (POST) endpoints
+(`/api/scan-findings`, `/api/validation-results`, `/api/drift-findings`,
+`/api/config-snapshots`, `/api/deployments`), called by the pipeline's
+`scan_secrets.py`, `validate_config.py`, `drift.py`, and the deploy/verify
+steps. Each write is authenticated by an `X-Write-Api-Key` header checked
+against that environment's own `WRITE_API_KEY_SECRET_REF` secret — one key
+per environment, same pattern as `DB_SECRET_REF`, not shared like the audit
+DB password. The read-only `GET /api/...` endpoints the frontend calls are
+not behind this key. `rotation_events` stays unwritten for now — no
+rotation mechanism exists yet in this repo.
+
 ## Where the database lives
 
 | Environment | Database |
