@@ -11,7 +11,9 @@ What it does:
     image tag, not baked into the checked-in file), APP_ENV matching the
     environment argument, DB_URL pointing at MySQL,
     DB_SECRET_REF matching the <env>/app/<name> Secrets Manager reference
-    format (not a literal secret),
+    format (not a literal secret), AUDIT_DB_URL/AUDIT_DB_USERNAME/
+    AUDIT_DB_SECRET_REF being present and well-formed (the shared audit
+    database connection, identical across all three environments),
     and — as a second, independent check — that no line in the file
     matches the same hardcoded-secret pattern scan_secrets.py looks for
     (config files should only ever hold references).
@@ -37,6 +39,7 @@ REPO_ROOT = Path(__file__).resolve().parent.parent
 CONFIG_DIR = REPO_ROOT / "config"
 
 REF_PATTERN = re.compile(r"^(dev|test|prod)/app/[a-z0-9-]+$")
+AUDIT_REF_PATTERN = re.compile(r"^shared/app/[a-z0-9-]+$")
 
 REQUIRED_KEYS = [
     "APP_ENV",
@@ -45,6 +48,9 @@ REQUIRED_KEYS = [
     "DB_URL",
     "DB_USERNAME",
     "DB_SECRET_REF",
+    "AUDIT_DB_URL",
+    "AUDIT_DB_USERNAME",
+    "AUDIT_DB_SECRET_REF",
     "SECRETS_PROVIDER",
 ]
 
@@ -92,6 +98,19 @@ def run_checks(environment: str, lines: list[str]) -> list[tuple[bool, str]]:
         (
             bool(REF_PATTERN.match(db_secret_ref)),
             "DB_SECRET_REF is a Secrets Manager reference (<env>/app/<name>)",
+        )
+    )
+
+    audit_db_url = values.get("AUDIT_DB_URL", "").strip()
+    checks.append(
+        (audit_db_url.startswith("jdbc:mysql://"), "AUDIT_DB_URL starts with jdbc:mysql://")
+    )
+
+    audit_db_secret_ref = values.get("AUDIT_DB_SECRET_REF", "").strip()
+    checks.append(
+        (
+            bool(AUDIT_REF_PATTERN.match(audit_db_secret_ref)),
+            "AUDIT_DB_SECRET_REF is a Secrets Manager reference (shared/app/<name>)",
         )
     )
 

@@ -8,6 +8,11 @@ db:
   username: ${DB_USERNAME}
   secret-ref: ${DB_SECRET_REF}         # AWS Secrets Manager path, or a local file path — never a password
 
+audit-db:
+  url: ${AUDIT_DB_URL}
+  username: ${AUDIT_DB_USERNAME}
+  secret-ref: ${AUDIT_DB_SECRET_REF}   # shared across Dev/Test/Prod — same database/user in all three
+
 secrets:
   provider: ${SECRETS_PROVIDER:file}   # "file" locally, "aws" in dev/test/prod
 

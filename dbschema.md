@@ -4,12 +4,23 @@ One small **MySQL** database records every check, rotation and deployment so
 the project has real data to validate, reconcile and compute KPIs from.
 **It never stores a secret value — only fingerprints and references.**
 
+The 8 tables below all live in **one shared database, `cap48_audit`**, not
+in each environment's own `app_dev`/`app_test`/`app_prod` database. Dev,
+Test and Prod each run their own app instance, but all three connect to
+this same shared database/user — that's what lets the Compare and History
+pages see all three environments at once. Each environment's own
+`app_dev`/`app_test`/`app_prod` database stays isolated per environment
+(nothing else uses it yet) and is configured completely separately
+(`DB_URL`/`DB_USERNAME`/`DB_SECRET_REF` vs. `AUDIT_DB_URL`/
+`AUDIT_DB_USERNAME`/`AUDIT_DB_SECRET_REF` in `config/<env>.env`).
+
 ## Where the database lives
 
 | Environment | Database |
 |---|---|
 | Local (your laptop) | MySQL in Docker, fake password from a git-ignored file. Inspect it with **MySQL Workbench** connected to `localhost:3306` only. |
-| Dev / Test / Prod (AWS) | One small AWS RDS MySQL instance, with three separate databases/users: `app_dev`, `app_test`, `app_prod` — each environment can reach only its own |
+| Dev / Test / Prod (AWS), own per-env database | One small AWS RDS MySQL instance, with three separate databases/users: `app_dev`, `app_test`, `app_prod` — each environment can reach only its own. Nothing uses this yet. |
+| Dev / Test / Prod (AWS), shared audit database | The same RDS instance, one shared database `cap48_audit` with its own user (`cap48_audit_user`), reachable from all three environments — this is where the 8 tables below actually live |
 
 ## Tables
 
