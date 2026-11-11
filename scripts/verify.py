@@ -2,10 +2,10 @@
 """verify.py - the final gate: confirm a deployment is actually healthy.
 
 Usage:
-    python scripts/verify.py <base_url> <dev|test|prod> [--help]
+    python scripts/verify.py <base_url> <dev|test|prod> [--version VERSION] [--help]
 
 Example:
-    python scripts/verify.py http://dev.cap48.example.com dev
+    python scripts/verify.py http://dev.cap48.example.com dev --version abc1234
 
 What it does:
     Calls GET {base_url}/actuator/health, retrying up to 5 times (3s
@@ -20,6 +20,12 @@ What it does:
     against the fingerprint recorded for the matching rotation event.
     Nothing else from the response is ever printed.
 
+    If the WRITE_API_KEY environment variable is set, the deployment
+    result is also recorded to {base_url}/api/deployments - the app
+    records this about itself, authenticated with its own environment's
+    write-API key (best-effort - a post failure never changes this
+    script's own exit code).
+
 Exit code:
     0 - health check passed AND environment matched
     1 - either check failed
@@ -33,6 +39,8 @@ import sys
 import time
 from urllib import error as urlerror
 from urllib import request
+
+import audit_post
 
 HEALTH_ATTEMPTS = 5
 HEALTH_RETRY_DELAY_SECONDS = 3
@@ -129,6 +137,7 @@ def main() -> int:
         choices=["dev", "test", "prod"],
         help="The environment that should be deployed at base_url",
     )
+    parser.add_argument("--version", default="", help="Image version/tag being verified, recorded with the deployment")
     args = parser.parse_args()
 
     base_url = args.base_url.rstrip("/")
@@ -148,6 +157,21 @@ def main() -> int:
     print(f"Summary: {passed}/2 checks passed")
     overall = health_ok and env_ok
     print(f"RESULT: {'PASS' if overall else 'FAIL'}")
+
+    api_key = audit_post.api_key_from_env()
+    if api_key:
+        audit_post.post(base_url, "/api/deployments", api_key, {
+            "environment": args.environment,
+            "imageVersion": args.version,
+            "verified": overall,
+            "verificationDetails": {
+                "health": health_reason,
+                "environmentMatch": env_reason,
+                "secretFingerprint": fingerprint,
+            },
+        })
+    else:
+        print("[audit] WRITE_API_KEY is not set - skipping deployment recording")
 
     return 0 if overall else 1
 

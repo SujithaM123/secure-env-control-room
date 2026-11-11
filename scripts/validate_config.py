@@ -2,7 +2,7 @@
 """validate_config.py - confirm an environment's config is deploy-ready.
 
 Usage:
-    python scripts/validate_config.py <dev|test|prod> [--help]
+    python scripts/validate_config.py <dev|test|prod> [--post-url URL] [--commit-sha SHA] [--help]
 
 What it does:
     Loads config/<env>.env and checks that it has everything the backend
@@ -22,6 +22,12 @@ What it does:
 
     Prints a PASS/FAIL line per check, then an overall summary.
 
+    If --post-url is given and the WRITE_API_KEY environment variable is
+    set, the overall PASS/FAIL result (and any failed check messages) is
+    also recorded to {post-url}/api/validation-results for the audit
+    trail (best-effort - a post failure never changes this script's own
+    exit code).
+
 Exit code:
     0 - every check passed
     1 - at least one check failed
@@ -30,11 +36,13 @@ Exit code:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
+import audit_post  # noqa: E402
 from scan_secrets import line_has_finding  # noqa: E402
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
@@ -152,6 +160,12 @@ def main() -> int:
         choices=["dev", "test", "prod"],
         help="Which environment's config to validate (maps to config/<env>.env)",
     )
+    parser.add_argument("--post-url", help="If given, POST the overall result to {post-url}/api/validation-results")
+    parser.add_argument(
+        "--commit-sha",
+        default=os.environ.get("GITHUB_SHA", ""),
+        help="Commit SHA recorded with the result (defaults to $GITHUB_SHA)",
+    )
     args = parser.parse_args()
 
     config_path = CONFIG_DIR / f"{args.environment}.env"
@@ -181,6 +195,19 @@ def main() -> int:
     print()
     print(f"Summary: {passed_count}/{total} checks passed")
     print(f"RESULT: {'PASS' if overall else 'FAIL'}")
+
+    if args.post_url:
+        api_key = audit_post.api_key_from_env()
+        if not api_key:
+            print("[audit] --post-url given but WRITE_API_KEY is not set - skipping audit recording")
+        else:
+            failed_messages = [message for passed, message in checks if not passed]
+            audit_post.post(args.post_url, "/api/validation-results", api_key, {
+                "environment": args.environment,
+                "status": "PASS" if overall else "FAIL",
+                "errors": failed_messages,
+                "commitSha": args.commit_sha,
+            })
 
     return 0 if overall else 1
 

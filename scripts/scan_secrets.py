@@ -2,7 +2,7 @@
 """scan_secrets.py - fail the pipeline if a hardcoded secret is committed.
 
 Usage:
-    python scripts/scan_secrets.py [--help]
+    python scripts/scan_secrets.py [--post-url URL] [--commit-sha SHA] [--help]
 
 What it does:
     Scans every file tracked by git (skipping .git/, node_modules/,
@@ -13,6 +13,11 @@ What it does:
     *reference* to a secret (an AWS Secrets Manager path, a file path, or
     ${ENV_VAR} interpolation) is not a finding and is skipped.
 
+    If --post-url is given and the WRITE_API_KEY environment variable is
+    set, each finding is also recorded to {post-url}/api/scan-findings
+    for the audit trail (best-effort - a post failure never changes this
+    script's own exit code).
+
 Exit code:
     0 - no findings (safe to continue the pipeline)
     1 - one or more findings (pipeline should stop)
@@ -21,10 +26,13 @@ Exit code:
 from __future__ import annotations
 
 import argparse
+import os
 import re
 import subprocess
 import sys
 from pathlib import Path
+
+import audit_post
 
 REPO_ROOT = Path(__file__).resolve().parent.parent
 SELF_PATH = Path(__file__).resolve()
@@ -196,7 +204,13 @@ def main() -> int:
             "so GitHub Actions can fail the build on a non-zero exit."
         )
     )
-    parser.parse_args()
+    parser.add_argument("--post-url", help="If given, POST each finding to {post-url}/api/scan-findings")
+    parser.add_argument(
+        "--commit-sha",
+        default=os.environ.get("GITHUB_SHA", ""),
+        help="Commit SHA recorded with each finding (defaults to $GITHUB_SHA)",
+    )
+    args = parser.parse_args()
 
     files = list_tracked_files()
 
@@ -218,6 +232,19 @@ def main() -> int:
         print()
         for finding in all_findings:
             print(f"{finding.path}:{finding.line_number}")
+
+    if args.post_url:
+        api_key = audit_post.api_key_from_env()
+        if not api_key:
+            print("[audit] --post-url given but WRITE_API_KEY is not set - skipping audit recording")
+        else:
+            for finding in all_findings:
+                audit_post.post(args.post_url, "/api/scan-findings", api_key, {
+                    "filePath": finding.path,
+                    "lineNumber": finding.line_number,
+                    "ruleMatched": "hardcoded-secret-pattern",
+                    "commitSha": args.commit_sha,
+                })
 
     return 1 if all_findings else 0
 

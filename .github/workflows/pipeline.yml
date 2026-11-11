@@ -13,6 +13,11 @@ env:
   DEPLOY_ROLE_ARN: arn:aws:iam::662904411409:role/github-actions-deploy-role
   DEPLOY_BUCKET: secure-env-control-room-sujitha-2026
   EB_APPLICATION_NAME: ecure-env-control-room
+  # Pre-deploy audit writes (scan/validate/drift) all go through Test's
+  # already-live app - the audit DB is shared, so any instance can record
+  # them; which environment a result is about is in the request body, not
+  # implied by which instance received it.
+  AUDIT_RECORDING_URL: http://cap48-test.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
 
 permissions:
   id-token: write
@@ -31,8 +36,20 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch write-API key for audit recording
+        run: |
+          KEY=$(aws secretsmanager get-secret-value --secret-id "test/app/write-api-key" --query SecretString --output text)
+          echo "::add-mask::$KEY"
+          echo "WRITE_API_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Scan for hardcoded secrets
-        run: python scripts/scan_secrets.py
+        run: python scripts/scan_secrets.py --post-url "${{ env.AUDIT_RECORDING_URL }}" --commit-sha "${{ github.sha }}"
 
   validate:
     name: Validate
@@ -47,14 +64,26 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch write-API key for audit recording
+        run: |
+          KEY=$(aws secretsmanager get-secret-value --secret-id "test/app/write-api-key" --query SecretString --output text)
+          echo "::add-mask::$KEY"
+          echo "WRITE_API_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Validate dev config
-        run: python scripts/validate_config.py dev
+        run: python scripts/validate_config.py dev --post-url "${{ env.AUDIT_RECORDING_URL }}" --commit-sha "${{ github.sha }}"
 
       - name: Validate test config
-        run: python scripts/validate_config.py test
+        run: python scripts/validate_config.py test --post-url "${{ env.AUDIT_RECORDING_URL }}" --commit-sha "${{ github.sha }}"
 
       - name: Validate prod config
-        run: python scripts/validate_config.py prod
+        run: python scripts/validate_config.py prod --post-url "${{ env.AUDIT_RECORDING_URL }}" --commit-sha "${{ github.sha }}"
 
   drift:
     name: Drift Check
@@ -70,10 +99,22 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Fetch write-API key for audit recording
+        run: |
+          KEY=$(aws secretsmanager get-secret-value --secret-id "test/app/write-api-key" --query SecretString --output text)
+          echo "::add-mask::$KEY"
+          echo "WRITE_API_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Compare environment configs
         run: |
           set +e
-          python scripts/drift.py | tee drift_output.txt
+          python scripts/drift.py --post-url "${{ env.AUDIT_RECORDING_URL }}" --commit-sha "${{ github.sha }}" | tee drift_output.txt
           exit_code=${PIPESTATUS[0]}
           set -e
           if [ "$exit_code" -ne 0 ]; then
@@ -269,8 +310,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Fetch write-API key for audit recording
+        run: |
+          KEY=$(aws secretsmanager get-secret-value --secret-id "dev/app/write-api-key" --query SecretString --output text)
+          echo "::add-mask::$KEY"
+          echo "WRITE_API_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Verify Dev deployment
-        run: python scripts/verify.py "${{ env.VERIFY_URL }}" dev
+        run: python scripts/verify.py "${{ env.VERIFY_URL }}" dev --version "${{ env.VERSION_LABEL }}"
+
+      - name: Record config snapshot
+        continue-on-error: true
+        run: python scripts/post_config_snapshot.py dev "${{ env.VERIFY_URL }}"
 
   deploy-test:
     name: Deploy Test
@@ -340,8 +391,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Fetch write-API key for audit recording
+        run: |
+          KEY=$(aws secretsmanager get-secret-value --secret-id "test/app/write-api-key" --query SecretString --output text)
+          echo "::add-mask::$KEY"
+          echo "WRITE_API_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Verify Test deployment
-        run: python scripts/verify.py "${{ env.VERIFY_URL }}" test
+        run: python scripts/verify.py "${{ env.VERIFY_URL }}" test --version "${{ env.VERSION_LABEL }}"
+
+      - name: Record config snapshot
+        continue-on-error: true
+        run: python scripts/post_config_snapshot.py test "${{ env.VERIFY_URL }}"
 
   deploy-prod:
     name: Deploy Prod
@@ -411,8 +472,18 @@ jobs:
         with:
           python-version: ${{ env.PYTHON_VERSION }}
 
+      - name: Fetch write-API key for audit recording
+        run: |
+          KEY=$(aws secretsmanager get-secret-value --secret-id "prod/app/write-api-key" --query SecretString --output text)
+          echo "::add-mask::$KEY"
+          echo "WRITE_API_KEY=$KEY" >> "$GITHUB_ENV"
+
       - name: Verify Prod deployment
-        run: python scripts/verify.py "${{ env.VERIFY_URL }}" prod
+        run: python scripts/verify.py "${{ env.VERIFY_URL }}" prod --version "${{ env.VERSION_LABEL }}"
+
+      - name: Record config snapshot
+        continue-on-error: true
+        run: python scripts/post_config_snapshot.py prod "${{ env.VERIFY_URL }}"
 
   final-leak-check:
     name: Final Leak Check
