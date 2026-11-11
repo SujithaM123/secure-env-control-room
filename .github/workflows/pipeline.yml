@@ -7,6 +7,7 @@ on:
 
 env:
   PYTHON_VERSION: "3.12"
+  NODE_VERSION: "20"
   IMAGE_NAME: secure-env-control-room
   AWS_REGION: ap-south-1
   DEPLOY_ROLE_ARN: arn:aws:iam::662904411409:role/github-actions-deploy-role
@@ -88,21 +89,121 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Copy frontend build into backend static resources
+        run: |
+          rm -rf backend/src/main/resources/static
+          mkdir -p backend/src/main/resources/static
+          cp -r frontend/dist/. backend/src/main/resources/static/
+
       - name: Set up JDK 17
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
-      - name: Build backend jar
+      - name: Build backend jar (validation)
         run: mvn -f backend/pom.xml clean package
 
-      - name: Build Docker image
+      - name: Build Docker image (validation)
         run: docker build -t ${{ env.IMAGE_NAME }}:${{ github.sha }} .
+
+  package:
+    name: Package (build once, promote to every environment)
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      id-token: write
+      contents: read
+    outputs:
+      version_label: ${{ steps.set_version.outputs.version_label }}
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Node
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Build frontend
+        run: |
+          cd frontend
+          npm ci
+          npm run build
+
+      - name: Copy frontend build into backend static resources
+        run: |
+          rm -rf backend/src/main/resources/static
+          mkdir -p backend/src/main/resources/static
+          cp -r frontend/dist/. backend/src/main/resources/static/
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Build backend jar (with frontend bundled in)
+        run: mvn -f backend/pom.xml clean package
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          role-to-assume: ${{ env.DEPLOY_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Resolve Elastic Beanstalk application name
+        run: |
+          app_name=$(aws elasticbeanstalk describe-environments \
+            --environment-names "cap48-dev" \
+            --query "Environments[0].ApplicationName" \
+            --output text)
+          if [ -z "$app_name" ] || [ "$app_name" = "None" ]; then
+            echo "Could not resolve Elastic Beanstalk application name" >&2
+            exit 1
+          fi
+          echo "EB_APPLICATION_NAME=$app_name" >> "$GITHUB_ENV"
+
+      - name: Create deployment bundle (one artifact, shared by every environment)
+        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
+
+      - name: Upload bundle to S3
+        run: |
+          aws s3 cp "deploy-${{ github.sha }}.zip" \
+            "s3://${{ env.DEPLOY_BUCKET }}/deploys/${{ github.sha }}.zip"
+
+      - name: Create Elastic Beanstalk application version
+        id: set_version
+        run: |
+          VERSION_LABEL="${{ github.sha }}"
+          existing=$(aws elasticbeanstalk describe-application-versions \
+            --application-name "${{ env.EB_APPLICATION_NAME }}" \
+            --version-labels "$VERSION_LABEL" \
+            --query "length(ApplicationVersions)" --output text)
+          if [ "$existing" = "0" ]; then
+            aws elasticbeanstalk create-application-version \
+              --application-name "${{ env.EB_APPLICATION_NAME }}" \
+              --version-label "$VERSION_LABEL" \
+              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/${{ github.sha }}.zip"
+          else
+            echo "Application version $VERSION_LABEL already exists, reusing it."
+          fi
+          echo "version_label=$VERSION_LABEL" >> "$GITHUB_OUTPUT"
 
   deploy-dev:
     name: Deploy Dev
-    needs: build
+    needs: package
     runs-on: ubuntu-latest
     permissions:
       id-token: write
@@ -110,18 +211,10 @@ jobs:
     env:
       EB_ENV_NAME: cap48-dev
       VERIFY_URL: http://cap48-dev.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
+      VERSION_LABEL: ${{ needs.package.outputs.version_label }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Build backend jar
-        run: mvn -f backend/pom.xml clean package
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -140,31 +233,6 @@ jobs:
             exit 1
           fi
           echo "EB_APPLICATION_NAME=$app_name" >> "$GITHUB_ENV"
-
-      - name: Create deployment bundle
-        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
-
-      - name: Upload bundle to S3
-        run: |
-          aws s3 cp "deploy-${{ github.sha }}.zip" \
-            "s3://${{ env.DEPLOY_BUCKET }}/deploys/dev/${{ github.sha }}.zip"
-
-      - name: Create Elastic Beanstalk application version
-        run: |
-          VERSION_LABEL="${{ github.sha }}-dev"
-          existing=$(aws elasticbeanstalk describe-application-versions \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-labels "$VERSION_LABEL" \
-            --query "length(ApplicationVersions)" --output text)
-          if [ "$existing" = "0" ]; then
-            aws elasticbeanstalk create-application-version \
-              --application-name "${{ env.EB_APPLICATION_NAME }}" \
-              --version-label "$VERSION_LABEL" \
-              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/dev/${{ github.sha }}.zip"
-          else
-            echo "Application version $VERSION_LABEL already exists, reusing it."
-          fi
-          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
 
       - name: Build EB environment properties
         run: |
@@ -214,18 +282,10 @@ jobs:
     env:
       EB_ENV_NAME: cap48-test
       VERIFY_URL: http://cap48-test.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
+      VERSION_LABEL: ${{ needs.package.outputs.version_label }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Build backend jar
-        run: mvn -f backend/pom.xml clean package
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -244,31 +304,6 @@ jobs:
             exit 1
           fi
           echo "EB_APPLICATION_NAME=$app_name" >> "$GITHUB_ENV"
-
-      - name: Create deployment bundle
-        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
-
-      - name: Upload bundle to S3
-        run: |
-          aws s3 cp "deploy-${{ github.sha }}.zip" \
-            "s3://${{ env.DEPLOY_BUCKET }}/deploys/test/${{ github.sha }}.zip"
-
-      - name: Create Elastic Beanstalk application version
-        run: |
-          VERSION_LABEL="${{ github.sha }}-test"
-          existing=$(aws elasticbeanstalk describe-application-versions \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-labels "$VERSION_LABEL" \
-            --query "length(ApplicationVersions)" --output text)
-          if [ "$existing" = "0" ]; then
-            aws elasticbeanstalk create-application-version \
-              --application-name "${{ env.EB_APPLICATION_NAME }}" \
-              --version-label "$VERSION_LABEL" \
-              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/test/${{ github.sha }}.zip"
-          else
-            echo "Application version $VERSION_LABEL already exists, reusing it."
-          fi
-          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
 
       - name: Build EB environment properties
         run: |
@@ -318,18 +353,10 @@ jobs:
     env:
       EB_ENV_NAME: cap48-prod
       VERIFY_URL: http://cap48-prod.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com
+      VERSION_LABEL: ${{ needs.package.outputs.version_label }}
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
-
-      - name: Set up JDK 17
-        uses: actions/setup-java@v4
-        with:
-          distribution: temurin
-          java-version: "17"
-
-      - name: Build backend jar
-        run: mvn -f backend/pom.xml clean package
 
       - name: Configure AWS credentials
         uses: aws-actions/configure-aws-credentials@v4
@@ -348,31 +375,6 @@ jobs:
             exit 1
           fi
           echo "EB_APPLICATION_NAME=$app_name" >> "$GITHUB_ENV"
-
-      - name: Create deployment bundle
-        run: zip -r "deploy-${{ github.sha }}.zip" . -x ".git/*"
-
-      - name: Upload bundle to S3
-        run: |
-          aws s3 cp "deploy-${{ github.sha }}.zip" \
-            "s3://${{ env.DEPLOY_BUCKET }}/deploys/prod/${{ github.sha }}.zip"
-
-      - name: Create Elastic Beanstalk application version
-        run: |
-          VERSION_LABEL="${{ github.sha }}-prod"
-          existing=$(aws elasticbeanstalk describe-application-versions \
-            --application-name "${{ env.EB_APPLICATION_NAME }}" \
-            --version-labels "$VERSION_LABEL" \
-            --query "length(ApplicationVersions)" --output text)
-          if [ "$existing" = "0" ]; then
-            aws elasticbeanstalk create-application-version \
-              --application-name "${{ env.EB_APPLICATION_NAME }}" \
-              --version-label "$VERSION_LABEL" \
-              --source-bundle S3Bucket="${{ env.DEPLOY_BUCKET }}",S3Key="deploys/prod/${{ github.sha }}.zip"
-          else
-            echo "Application version $VERSION_LABEL already exists, reusing it."
-          fi
-          echo "VERSION_LABEL=$VERSION_LABEL" >> "$GITHUB_ENV"
 
       - name: Build EB environment properties
         run: |
