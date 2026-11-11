@@ -13,8 +13,11 @@ import java.security.MessageDigest;
 
 /**
  * Gates the 5 write endpoints behind a shared secret, one per environment.
- * Only registered on those write paths ({@link WriteAuthFilterConfig}) — the
- * read-only GET endpoints the frontend calls stay open.
+ * Registered on those write paths ({@link WriteAuthFilterConfig}), but a
+ * servlet url-pattern mapping is method-agnostic — {@code /api/scan-findings}
+ * is also a GET endpoint ({@link ScanFindingsController}) — so this only
+ * checks the key on POST; every other method on those same paths passes
+ * straight through.
  *
  * <p>The key is fetched from {@link SecretProvider} once, lazily, on the
  * first successful call, and cached in memory for the rest of the app's
@@ -37,6 +40,10 @@ public class WriteApiKeyFilter extends OncePerRequestFilter {
     @Override
     protected void doFilterInternal(HttpServletRequest request, HttpServletResponse response, FilterChain filterChain)
             throws ServletException, IOException {
+        if (!"POST".equalsIgnoreCase(request.getMethod())) {
+            filterChain.doFilter(request, response);
+            return;
+        }
         String presented = request.getHeader(HEADER_NAME);
         if (presented == null || !constantTimeEquals(presented, currentKey())) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid " + HEADER_NAME);
