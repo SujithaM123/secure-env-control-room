@@ -14,9 +14,13 @@ import type {
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
-if (!BASE_URL) {
+// An empty BASE_URL is correct and expected in production: the built app is
+// served by the same Spring Boot app it calls, so relative paths are
+// same-origin. It's only a misconfiguration in local dev, where the Vite
+// dev server's own origin isn't the backend - warn there only.
+if (import.meta.env.DEV && !BASE_URL) {
   console.warn(
-    "VITE_API_BASE_URL is not set — the dashboard has no backend to call."
+    "VITE_API_BASE_URL is not set — requests will go to this Vite dev server's own origin, not a backend. Set it in frontend/.env for local development."
   );
 }
 
