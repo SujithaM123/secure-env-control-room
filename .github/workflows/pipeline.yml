@@ -3,7 +3,12 @@ name: CAP-48 Pipeline
 on:
   push:
     branches: [master]
-  workflow_dispatch: {}
+  workflow_dispatch:
+    inputs:
+      promote_to_test:
+        description: "TEMPORARY GATE (see deploy-test's if:) — promote past Dev to Test/Prod. A plain push only ever reaches Dev while this gate is in place; re-run this workflow manually with this checked to promote. Remove once ready to go back to auto-promotion."
+        type: boolean
+        default: false
 
 env:
   PYTHON_VERSION: "3.12"
@@ -326,6 +331,12 @@ jobs:
   deploy-test:
     name: Deploy Test
     needs: [deploy-dev, package]
+    # TEMPORARY GATE: a plain push to master only reaches Dev while this is
+    # here. To promote to Test (and, from there, Prod), re-run this workflow
+    # via workflow_dispatch with promote_to_test checked. Remove this `if:`
+    # (and the matching workflow_dispatch input above) once ready to go back
+    # to automatic promotion on every push.
+    if: github.event_name == 'workflow_dispatch' && github.event.inputs.promote_to_test == 'true'
     runs-on: ubuntu-latest
     permissions:
       id-token: write
