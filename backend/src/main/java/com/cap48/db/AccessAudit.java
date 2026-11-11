@@ -1,6 +1,7 @@
 package com.cap48.db;
 
 import jakarta.persistence.*;
+import java.time.Instant;
 
 @Entity
 @Table(name = "access_audit")
@@ -22,6 +23,9 @@ public class AccessAudit {
 
     @Column(nullable = false)
     private String justification;
+
+    @Column(name = "captured_at")
+    private Instant capturedAt;
 
     public Long getId() {
         return id;
@@ -57,5 +61,13 @@ public class AccessAudit {
 
     public void setJustification(String justification) {
         this.justification = justification;
+    }
+
+    public Instant getCapturedAt() {
+        return capturedAt;
+    }
+
+    public void setCapturedAt(Instant capturedAt) {
+        this.capturedAt = capturedAt;
     }
 }

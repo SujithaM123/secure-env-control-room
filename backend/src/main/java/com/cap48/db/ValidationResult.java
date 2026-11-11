@@ -25,6 +25,9 @@ public class ValidationResult {
     @Column(name = "errors_json", columnDefinition = "json")
     private String errorsJson;
 
+    @Column(name = "commit_sha")
+    private String commitSha;
+
     public Long getId() {
         return id;
     }
@@ -59,5 +62,13 @@ public class ValidationResult {
 
     public void setErrorsJson(String errorsJson) {
         this.errorsJson = errorsJson;
+    }
+
+    public String getCommitSha() {
+        return commitSha;
+    }
+
+    public void setCommitSha(String commitSha) {
+        this.commitSha = commitSha;
     }
 }

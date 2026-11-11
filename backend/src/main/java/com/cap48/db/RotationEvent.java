@@ -35,6 +35,9 @@ public class RotationEvent {
     @Column(nullable = false)
     private String status;
 
+    @Column(name = "commit_sha")
+    private String commitSha;
+
     public Long getId() {
         return id;
     }
@@ -93,5 +96,13 @@ public class RotationEvent {
 
     public void setStatus(String status) {
         this.status = status;
+    }
+
+    public String getCommitSha() {
+        return commitSha;
+    }
+
+    public void setCommitSha(String commitSha) {
+        this.commitSha = commitSha;
     }
 }
