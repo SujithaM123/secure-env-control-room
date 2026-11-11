@@ -14,7 +14,7 @@ export function SecretAgeBarChart({ summaries }: { summaries: EnvironmentSummary
       backgroundColor: colors.surface,
       borderColor: colors.border,
       textStyle: { color: colors.text, fontFamily: "IBM Plex Mono" },
-      formatter: (p: { name: string; value: number }[]) =>
+      formatter: (p: { name: string; value: number | null }[]) =>
         `${p[0].name}<br/>${p[0].value == null ? "Never rotated" : `${p[0].value} day(s)`}`,
     },
     xAxis: {
@@ -37,7 +37,10 @@ export function SecretAgeBarChart({ summaries }: { summaries: EnvironmentSummary
         type: "bar",
         barWidth: "45%",
         data: summaries.map((s) => ({
-          value: s.secretAgeDays ?? 0,
+          // null (never rotated) is left as null, not coerced to 0, so it
+          // renders as no bar rather than a misleading zero-height one, and
+          // the tooltip's `value == null` check below actually fires.
+          value: s.secretAgeDays,
           itemStyle: { color: s.rotationOverdue ? colors.danger : colors.accent },
         })),
       },
