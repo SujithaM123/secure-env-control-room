@@ -33,6 +33,12 @@ jobs:
     name: Scan
     runs-on: ubuntu-latest
     steps:
+      - name: Debug - show how this run was triggered and what promote_to_test resolved to
+        run: |
+          echo "event_name: ${{ github.event_name }}"
+          echo "inputs.promote_to_test (typed context): ${{ inputs.promote_to_test }}"
+          echo "github.event.inputs.promote_to_test (legacy string context): ${{ github.event.inputs.promote_to_test }}"
+
       - name: Checkout code
         uses: actions/checkout@v4
 
@@ -336,7 +342,13 @@ jobs:
     # via workflow_dispatch with promote_to_test checked. Remove this `if:`
     # (and the matching workflow_dispatch input above) once ready to go back
     # to automatic promotion on every push.
-    if: github.event_name == 'workflow_dispatch' && github.event.inputs.promote_to_test == 'true'
+    #
+    # Checks both of GitHub's two input contexts (the typed `inputs.*` and
+    # the legacy always-stringified `github.event.inputs.*`) since a run
+    # that didn't promote gave no way to tell, from the UI alone, which one
+    # (if either) actually came through true - see the Scan job's debug
+    # step for the raw values on any given run.
+    if: github.event_name == 'workflow_dispatch' && (inputs.promote_to_test == true || github.event.inputs.promote_to_test == 'true')
     runs-on: ubuntu-latest
     permissions:
       id-token: write
