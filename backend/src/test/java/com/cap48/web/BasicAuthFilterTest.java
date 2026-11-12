@@ -38,7 +38,10 @@ class BasicAuthFilterTest {
         filter.doFilter(request, response, chain);
 
         assertThat(response.getStatus()).isEqualTo(401);
-        assertThat(response.getHeader("WWW-Authenticate")).isEqualTo("Basic realm=\"CAP-48 Rotation\"");
+        // Deliberately no WWW-Authenticate header - that's what triggers the
+        // browser's native Basic Auth popup on top of the in-page form's own
+        // request, confirmed live. This 401 must be a plain one.
+        assertThat(response.getHeader("WWW-Authenticate")).isNull();
         verifyNoInteractions(chain);
     }
 

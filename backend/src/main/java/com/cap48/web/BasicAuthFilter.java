@@ -14,18 +14,24 @@ import java.util.Base64;
 /**
  * Gates the rotation endpoint with HTTP Basic Auth - a human credential,
  * deliberately decoupled from the write-API key itself (which
- * {@link WriteApiKeyFilter} checks for every other write endpoint). Rotating
- * the write-API key is the one write action a person, not a pipeline
- * script, triggers from the browser, and the browser's native Basic Auth
- * prompt (fired by the 401 + WWW-Authenticate below) is exactly the UI for
- * that - the real credential never has to be embedded in frontend code.
+ * {@link WriteApiKeyFilter} checks for every other write endpoint). The
+ * credential is entered through an in-page form (RotateButton on the
+ * frontend), which builds the Authorization: Basic header itself and
+ * sends it on a plain fetch - not the browser's native Basic Auth prompt.
+ *
+ * Deliberately does NOT send a WWW-Authenticate header on a 401. Browsers
+ * auto-trigger their native credential dialog on ANY 401 response that
+ * carries that header, even when the request already included its own
+ * Authorization header with (wrong) credentials - confirmed live: the
+ * in-page form's own request still popped the native dialog on top of it
+ * until this header was removed. Omitting it means a 401 here is just a
+ * plain HTTP error the frontend handles itself, with no special browser
+ * behavior - exactly what a JS-only caller needs.
  *
  * Like {@link WriteApiKeyFilter}, the password is fetched from
  * {@link SecretProvider} once, lazily, and cached for the app's lifetime.
  */
 public class BasicAuthFilter extends OncePerRequestFilter {
-
-    private static final String REALM = "CAP-48 Rotation";
 
     private final String username;
     private final SecretProvider passwordSecretProvider;
@@ -45,7 +51,6 @@ public class BasicAuthFilter extends OncePerRequestFilter {
         if (presented == null
                 || !ConstantTimeCompare.equals(presented.username(), username)
                 || !ConstantTimeCompare.equals(presented.password(), currentPassword())) {
-            response.setHeader("WWW-Authenticate", "Basic realm=\"" + REALM + "\"");
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid credentials");
             return;
         }
