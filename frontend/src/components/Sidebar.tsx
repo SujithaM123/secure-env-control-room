@@ -4,10 +4,27 @@ import { ThemeToggle } from "./ThemeToggle";
 import { fetchAllEnvironmentSummaries } from "../lib/api";
 import { healthTone } from "../lib/health";
 
+/**
+ * Each environment's own deployed host. Dev/Test/Prod links below are
+ * plain <a> tags to these absolute URLs, not client-side routes -
+ * confirmed live, repeatedly: a client-side route change (React Router
+ * Link/NavLink) only updates the path, not the origin, so clicking "Prod"
+ * while a page is being served FROM Dev's host just shows the Prod route
+ * on Dev's own backend. Since every API call (including the rotate POST)
+ * is same-origin, that silently checks credentials against the wrong
+ * environment's secret. A real navigation to the correct host is the only
+ * way to guarantee you're actually talking to that environment.
+ */
+const ENV_BASE_URLS: Record<string, string> = {
+  dev: "http://cap48-dev.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com",
+  test: "http://cap48-test.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com",
+  prod: "http://cap48-prod.eba-3tu8qrdw.ap-south-1.elasticbeanstalk.com",
+};
+
 const ENV_LINKS = [
-  { to: "/dev", id: "dev", label: "Dev" },
-  { to: "/test", id: "test", label: "Test" },
-  { to: "/prod", id: "prod", label: "Prod" },
+  { id: "dev", label: "Dev" },
+  { id: "test", label: "Test" },
+  { id: "prod", label: "Prod" },
 ];
 
 const SECONDARY_LINKS = [
@@ -30,6 +47,8 @@ export function Sidebar() {
     return summary ? TONE_DOT_CLASS[healthTone(summary.healthScore)] : TONE_DOT_CLASS.neutral;
   }
 
+  const currentOrigin = typeof window !== "undefined" ? window.location.origin : "";
+
   return (
     <aside className="tile flex h-screen w-[170px] shrink-0 flex-col rounded-none border-y-0 border-l-0 px-3 py-4">
       <div className="mb-6 flex items-center gap-2 px-1">
@@ -41,20 +60,21 @@ export function Sidebar() {
       </div>
 
       <nav className="flex flex-col gap-1">
-        {ENV_LINKS.map((link) => (
-          <NavLink
-            key={link.to}
-            to={link.to}
-            className={({ isActive }) =>
-              `flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm font-medium ${
+        {ENV_LINKS.map((link) => {
+          const isActive = ENV_BASE_URLS[link.id] === currentOrigin;
+          return (
+            <a
+              key={link.id}
+              href={`${ENV_BASE_URLS[link.id]}/${link.id}`}
+              className={`flex items-center gap-2 rounded-sm px-2.5 py-1.5 text-sm font-medium ${
                 isActive ? "bg-accent/10 text-accent" : "text-text-muted hover:text-text"
-              }`
-            }
-          >
-            <span className={`h-2 w-2 shrink-0 rounded-full ${dotToneFor(link.id)}`} aria-hidden="true" />
-            {link.label}
-          </NavLink>
-        ))}
+              }`}
+            >
+              <span className={`h-2 w-2 shrink-0 rounded-full ${dotToneFor(link.id)}`} aria-hidden="true" />
+              {link.label}
+            </a>
+          );
+        })}
       </nav>
 
       <div className="my-3 border-t border-border" />
