@@ -24,7 +24,8 @@ import java.security.MessageDigest;
  * lifetime — there's no TTL or background refresh. Rotating the secret in
  * Secrets Manager therefore has no effect on a running instance until it's
  * restarted; this is an accepted trade-off given how infrequently this key
- * is expected to change.
+ * is expected to change for an out-of-band edit; see {@link #updateCachedKey(String)}
+ * for the one case that doesn't need a restart.
  */
 public class WriteApiKeyFilter extends OncePerRequestFilter {
 
@@ -50,6 +51,11 @@ public class WriteApiKeyFilter extends OncePerRequestFilter {
             return;
         }
         filterChain.doFilter(request, response);
+    }
+
+    /** Called by {@link RotationController} right after a successful rotation so this instance checks future requests against the new key with no restart needed. */
+    public void updateCachedKey(String newKey) {
+        this.cachedKey = newKey;
     }
 
     /** Fetches the key on first call and caches it; a failed fetch is retried on the next request. */

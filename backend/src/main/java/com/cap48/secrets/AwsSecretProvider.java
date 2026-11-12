@@ -3,6 +3,7 @@ package com.cap48.secrets;
 import software.amazon.awssdk.services.secretsmanager.SecretsManagerClient;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueRequest;
 import software.amazon.awssdk.services.secretsmanager.model.GetSecretValueResponse;
+import software.amazon.awssdk.services.secretsmanager.model.PutSecretValueRequest;
 import software.amazon.awssdk.services.secretsmanager.model.SecretsManagerException;
 
 /**
@@ -32,6 +33,19 @@ public class AwsSecretProvider implements SecretProvider {
             return response.secretString();
         } catch (SecretsManagerException e) {
             throw new IllegalStateException("secret unavailable", e);
+        }
+    }
+
+    @Override
+    public void rotate(String newValue) {
+        try {
+            PutSecretValueRequest request = PutSecretValueRequest.builder()
+                    .secretId(secretRef)
+                    .secretString(newValue)
+                    .build();
+            client.putSecretValue(request);
+        } catch (SecretsManagerException e) {
+            throw new IllegalStateException("could not rotate secret", e);
         }
     }
 }

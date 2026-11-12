@@ -9,8 +9,16 @@ import type {
   HistoryDetail,
   HistoryRow,
   RotationEvent,
+  RotationResult,
   ScanFinding,
 } from "../types/api";
+
+export class ApiError extends Error {
+  constructor(public status: number, message: string) {
+    super(message);
+    this.name = "ApiError";
+  }
+}
 
 const BASE_URL = import.meta.env.VITE_API_BASE_URL ?? "";
 
@@ -29,7 +37,24 @@ async function getJson<T>(path: string): Promise<T> {
     headers: { Accept: "application/json" },
   });
   if (!response.ok) {
-    throw new Error(`${path} responded with ${response.status}`);
+    throw new ApiError(response.status, `${path} responded with ${response.status}`);
+  }
+  return (await response.json()) as T;
+}
+
+/**
+ * No credential is attached here - this dashboard has no login, so it has
+ * nothing safe to send as the write-API key. A write endpoint protected by
+ * WriteApiKeyFilter (like rotation) will correctly respond 401; that's
+ * expected, not a bug, until this dashboard has some form of auth.
+ */
+async function postJson<T>(path: string): Promise<T> {
+  const response = await fetch(`${BASE_URL}${path}`, {
+    method: "POST",
+    headers: { Accept: "application/json" },
+  });
+  if (!response.ok) {
+    throw new ApiError(response.status, `${path} responded with ${response.status}`);
   }
   return (await response.json()) as T;
 }
@@ -64,3 +89,6 @@ export const fetchHistory = () => getJson<HistoryRow[]>("/api/history");
 
 export const fetchHistoryDetail = (commitSha: string) =>
   getJson<HistoryDetail>(`/api/history/${commitSha}`);
+
+export const rotateWriteApiKey = (env: string) =>
+  postJson<RotationResult>(`/api/rotate/write-api-key/${env}`);

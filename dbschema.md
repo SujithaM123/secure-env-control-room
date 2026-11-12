@@ -17,16 +17,27 @@ pages see all three environments at once. Each environment's own
 ## Who writes to it
 
 Nothing seeds these tables ahead of time — `environments` and the other 7
-tables are populated only by 5 write (POST) endpoints
+tables are populated only by 6 write (POST) endpoints
 (`/api/scan-findings`, `/api/validation-results`, `/api/drift-findings`,
-`/api/config-snapshots`, `/api/deployments`), called by the pipeline's
-`scan_secrets.py`, `validate_config.py`, `drift.py`, and the deploy/verify
-steps. Each write is authenticated by an `X-Write-Api-Key` header checked
-against that environment's own `WRITE_API_KEY_SECRET_REF` secret — one key
-per environment, same pattern as `DB_SECRET_REF`, not shared like the audit
-DB password. The read-only `GET /api/...` endpoints the frontend calls are
-not behind this key. `rotation_events` stays unwritten for now — no
-rotation mechanism exists yet in this repo.
+`/api/config-snapshots`, `/api/deployments`, `/api/rotate/write-api-key/{env}`),
+called by the pipeline's `scan_secrets.py`, `validate_config.py`, `drift.py`,
+the deploy/verify steps, and (for rotation) a manual trigger. Each write is
+authenticated by an `X-Write-Api-Key` header checked against that
+environment's own `WRITE_API_KEY_SECRET_REF` secret — one key per
+environment, same pattern as `DB_SECRET_REF`, not shared like the audit DB
+password. The read-only `GET /api/...` endpoints the frontend calls are
+not behind this key.
+
+`rotation_events` now has its first writer: `POST /api/rotate/write-api-key/{env}`
+generates a new random token, calls Secrets Manager's `PutSecretValue` on
+that environment's own `write-api-key` secret, updates this instance's
+in-memory cached key immediately, and records one row (old/new
+fingerprint, never the raw value, plus `switched`/`failed` status). `{env}`
+must match the instance's own `APP_ENV` — each app role only has IAM
+permission on its own write-api-key ARN, so cross-environment rotation
+isn't just blocked in code, it would fail in AWS anyway. This is phase one
+of rotation and only covers the write-API key, not the DB or audit-DB
+passwords.
 
 ## Where the database lives
 

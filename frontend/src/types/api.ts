@@ -89,6 +89,14 @@ export interface DriftFinding {
   allowed: boolean;
 }
 
+export interface RotationResult {
+  environment: string;
+  status: string;
+  oldFingerprint: string;
+  newFingerprint: string;
+  completedAt: string | null;
+}
+
 export interface HistoryRow {
   commitSha: string;
   date: string | null;

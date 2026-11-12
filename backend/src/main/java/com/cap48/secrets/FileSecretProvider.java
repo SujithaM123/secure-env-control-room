@@ -26,4 +26,14 @@ public class FileSecretProvider implements SecretProvider {
                     "Could not read local secret file at " + secretFilePath, e);
         }
     }
+
+    @Override
+    public void rotate(String newValue) {
+        try {
+            Files.writeString(secretFilePath, newValue);
+        } catch (IOException e) {
+            throw new IllegalStateException(
+                    "Could not write local secret file at " + secretFilePath, e);
+        }
+    }
 }

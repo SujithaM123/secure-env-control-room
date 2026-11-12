@@ -1,11 +1,13 @@
 import type { ReactNode } from "react";
-import { useQuery } from "@tanstack/react-query";
+import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
+  ApiError,
   fetchAccessAudit,
   fetchConfigSnapshot,
   fetchDeployments,
   fetchEnvironmentSummary,
   fetchRotations,
+  rotateWriteApiKey,
 } from "../lib/api";
 import { Tile } from "../components/Tile";
 import { StatusDot, type StatusTone } from "../components/StatusDot";
@@ -51,6 +53,42 @@ function StatusBadge({ summary }: { summary: EnvironmentSummary }) {
   );
 }
 
+function RotateButton({ env }: { env: "dev" | "test" | "prod" }) {
+  const queryClient = useQueryClient();
+  const mutation = useMutation({
+    mutationFn: () => rotateWriteApiKey(env),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ["summary", env] });
+      queryClient.invalidateQueries({ queryKey: ["rotations", env] });
+    },
+  });
+
+  return (
+    <div className="flex flex-col gap-2">
+      <button
+        type="button"
+        onClick={() => mutation.mutate()}
+        disabled={mutation.isPending}
+        className="tile w-fit rounded-sm px-3 py-1.5 text-sm font-medium text-text hover:border-accent disabled:opacity-50"
+      >
+        {mutation.isPending ? "Rotating…" : "Rotate now"}
+      </button>
+      {mutation.isError && (
+        <p className="text-xs text-danger">
+          {mutation.error instanceof ApiError && mutation.error.status === 401
+            ? "Not authorized — this dashboard has no login yet, so it has no credential to rotate a live secret with. This is expected, not a bug."
+            : "Rotation failed — see console for details."}
+        </p>
+      )}
+      {mutation.isSuccess && (
+        <p className="text-xs text-success">
+          Rotated — new fingerprint <Fingerprint value={mutation.data.newFingerprint} />
+        </p>
+      )}
+    </div>
+  );
+}
+
 export function EnvironmentPage({ env }: { env: "dev" | "test" | "prod" }) {
   const summaryQuery = useQuery({ queryKey: ["summary", env], queryFn: () => fetchEnvironmentSummary(env) });
   const snapshotQuery = useQuery({ queryKey: ["config-snapshot", env], queryFn: () => fetchConfigSnapshot(env), retry: false });
@@ -63,7 +101,10 @@ export function EnvironmentPage({ env }: { env: "dev" | "test" | "prod" }) {
       <h1 className="text-xl font-semibold">{envLabel(env)}</h1>
 
       <Tile title="Status">
-        {summaryQuery.data ? <StatusBadge summary={summaryQuery.data} /> : <p className="text-sm text-text-muted">Loading…</p>}
+        <div className="flex flex-col gap-4">
+          {summaryQuery.data ? <StatusBadge summary={summaryQuery.data} /> : <p className="text-sm text-text-muted">Loading…</p>}
+          <RotateButton env={env} />
+        </div>
       </Tile>
 
       <Tile title="Config snapshot">
