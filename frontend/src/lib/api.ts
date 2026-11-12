@@ -43,10 +43,13 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 /**
- * No credential is attached here - this dashboard has no login, so it has
- * nothing safe to send as the write-API key. A write endpoint protected by
- * WriteApiKeyFilter (like rotation) will correctly respond 401; that's
- * expected, not a bug, until this dashboard has some form of auth.
+ * No credential is attached in JS here - that's intentional, not a gap.
+ * The rotation endpoint is gated by HTTP Basic Auth (BasicAuthFilter), and
+ * a 401 with WWW-Authenticate: Basic triggers the browser's own native
+ * credential prompt; the browser then retries with the Authorization
+ * header itself. The real credential never needs to touch frontend code.
+ * The other 5 write endpoints (WriteApiKeyFilter, the write-API key) are
+ * pipeline-only and never called from this dashboard at all.
  */
 async function postJson<T>(path: string): Promise<T> {
   const response = await fetch(`${BASE_URL}${path}`, {

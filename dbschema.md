@@ -21,12 +21,20 @@ tables are populated only by 6 write (POST) endpoints
 (`/api/scan-findings`, `/api/validation-results`, `/api/drift-findings`,
 `/api/config-snapshots`, `/api/deployments`, `/api/rotate/write-api-key/{env}`),
 called by the pipeline's `scan_secrets.py`, `validate_config.py`, `drift.py`,
-the deploy/verify steps, and (for rotation) a manual trigger. Each write is
-authenticated by an `X-Write-Api-Key` header checked against that
-environment's own `WRITE_API_KEY_SECRET_REF` secret — one key per
-environment, same pattern as `DB_SECRET_REF`, not shared like the audit DB
-password. The read-only `GET /api/...` endpoints the frontend calls are
-not behind this key.
+the deploy/verify steps, and (for rotation) a person clicking "Rotate now"
+in the dashboard. The 5 pipeline-driven writes are authenticated by an
+`X-Write-Api-Key` header checked against that environment's own
+`WRITE_API_KEY_SECRET_REF` secret — one key per environment, same pattern
+as `DB_SECRET_REF`, not shared like the audit DB password. The rotation
+endpoint is authenticated differently, deliberately: HTTP Basic Auth
+against `ROTATE_AUTH_USERNAME`/`ROTATE_AUTH_PASSWORD_SECRET_REF` (also
+per-environment; `ROTATE_AUTH_USERNAME` is the one setting expected to be
+identical everywhere). Rotating the write-API key can't require
+presenting that same key as the credential from an unauthenticated
+browser, so it uses its own human credential instead — the browser's
+native Basic Auth prompt, not anything embedded in frontend code. The
+read-only `GET /api/...` endpoints the frontend calls are not behind
+either credential.
 
 `rotation_events` now has its first writer: `POST /api/rotate/write-api-key/{env}`
 generates a new random token, calls Secrets Manager's `PutSecretValue` on

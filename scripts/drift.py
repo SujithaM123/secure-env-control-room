@@ -9,8 +9,8 @@ What it does:
     compares every pair of environments (dev<->test, test<->prod,
     dev<->prod). Keys on the allowed-to-differ list (DB_URL,
     DB_USERNAME, LOG_LEVEL, APP_ENV, APP_VERSION, DB_SECRET_REF,
-    WRITE_API_KEY_SECRET_REF) are expected to vary and are skipped.
-    Anything else that differs —
+    WRITE_API_KEY_SECRET_REF, ROTATE_AUTH_PASSWORD_SECRET_REF) are
+    expected to vary and are skipped. Anything else that differs —
     including a key that exists in one environment's file but is
     entirely missing from another's, which is flagged as the more
     serious case — is unexpected drift.
@@ -62,6 +62,10 @@ ALLOWED_TO_DIFFER = {
     "DB_SECRET_REF",
     # Same reasoning — each environment has its own write-API key.
     "WRITE_API_KEY_SECRET_REF",
+    # Same reasoning — each environment has its own rotation Basic Auth
+    # password. ROTATE_AUTH_USERNAME is intentionally NOT here - it's
+    # expected to be identical everywhere, so a difference there is real drift.
+    "ROTATE_AUTH_PASSWORD_SECRET_REF",
 }
 
 MISSING = object()

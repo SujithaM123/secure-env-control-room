@@ -26,8 +26,12 @@ import java.util.Base64;
  * APP_ENV; anything else is rejected before ever calling AWS, since a
  * mismatch could never succeed there anyway.
  *
- * Gated by {@link WriteApiKeyFilter} like every other write endpoint - the
- * caller must already hold the CURRENT key to request a new one.
+ * Gated by {@link BasicAuthFilter} ({@link RotateAuthFilterConfig}) - a
+ * human credential, not the write-API key itself. Unlike every other write
+ * endpoint (checked by {@link WriteApiKeyFilter}), rotating the key can't
+ * require presenting that same key as the credential to call it from an
+ * unauthenticated browser - the browser's native Basic Auth prompt, fired
+ * by that filter's 401, is the intended way a person triggers this.
  */
 @RestController
 public class RotationController {

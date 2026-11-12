@@ -76,7 +76,7 @@ function RotateButton({ env }: { env: "dev" | "test" | "prod" }) {
       {mutation.isError && (
         <p className="text-xs text-danger">
           {mutation.error instanceof ApiError && mutation.error.status === 401
-            ? "Not authorized — this dashboard has no login yet, so it has no credential to rotate a live secret with. This is expected, not a bug."
+            ? "Not authorized — this action requires credentials. If your browser didn't prompt you, or you cancelled/mistyped them, click Rotate now again."
             : "Rotation failed — see console for details."}
         </p>
       )}

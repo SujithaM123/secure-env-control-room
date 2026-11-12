@@ -16,6 +16,9 @@ What it does:
     database connection, identical across all three environments),
     WRITE_API_KEY_SECRET_REF being present and well-formed (this
     environment's own write-API key, like DB_SECRET_REF),
+    ROTATE_AUTH_USERNAME/ROTATE_AUTH_PASSWORD_SECRET_REF being present
+    and well-formed (the rotation endpoint's Basic Auth credential -
+    a human credential, not a machine one),
     and — as a second, independent check — that no line in the file
     matches the same hardcoded-secret pattern scan_secrets.py looks for
     (config files should only ever hold references).
@@ -62,6 +65,8 @@ REQUIRED_KEYS = [
     "AUDIT_DB_USERNAME",
     "AUDIT_DB_SECRET_REF",
     "WRITE_API_KEY_SECRET_REF",
+    "ROTATE_AUTH_USERNAME",
+    "ROTATE_AUTH_PASSWORD_SECRET_REF",
     "SECRETS_PROVIDER",
 ]
 
@@ -130,6 +135,14 @@ def run_checks(environment: str, lines: list[str]) -> list[tuple[bool, str]]:
         (
             bool(REF_PATTERN.match(write_api_key_secret_ref)),
             "WRITE_API_KEY_SECRET_REF is a Secrets Manager reference (<env>/app/<name>)",
+        )
+    )
+
+    rotate_auth_password_secret_ref = values.get("ROTATE_AUTH_PASSWORD_SECRET_REF", "").strip()
+    checks.append(
+        (
+            bool(REF_PATTERN.match(rotate_auth_password_secret_ref)),
+            "ROTATE_AUTH_PASSWORD_SECRET_REF is a Secrets Manager reference (<env>/app/<name>)",
         )
     )
 

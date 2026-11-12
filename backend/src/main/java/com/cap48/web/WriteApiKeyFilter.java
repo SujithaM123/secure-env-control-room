@@ -8,8 +8,6 @@ import jakarta.servlet.http.HttpServletResponse;
 import org.springframework.web.filter.OncePerRequestFilter;
 
 import java.io.IOException;
-import java.nio.charset.StandardCharsets;
-import java.security.MessageDigest;
 
 /**
  * Gates the 5 write endpoints behind a shared secret, one per environment.
@@ -46,7 +44,7 @@ public class WriteApiKeyFilter extends OncePerRequestFilter {
             return;
         }
         String presented = request.getHeader(HEADER_NAME);
-        if (presented == null || !constantTimeEquals(presented, currentKey())) {
+        if (presented == null || !ConstantTimeCompare.equals(presented, currentKey())) {
             response.sendError(HttpServletResponse.SC_UNAUTHORIZED, "Missing or invalid " + HEADER_NAME);
             return;
         }
@@ -71,11 +69,5 @@ public class WriteApiKeyFilter extends OncePerRequestFilter {
             }
         }
         return key;
-    }
-
-    private static boolean constantTimeEquals(String a, String b) {
-        return MessageDigest.isEqual(
-                a.getBytes(StandardCharsets.UTF_8),
-                b.getBytes(StandardCharsets.UTF_8));
     }
 }

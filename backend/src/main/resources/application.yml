@@ -16,6 +16,10 @@ audit-db:
 write-auth:
   secret-ref: ${WRITE_API_KEY_SECRET_REF}   # per-environment, like DB_SECRET_REF — checked against the X-Write-Api-Key header on writes
 
+rotate-auth:
+  username: ${ROTATE_AUTH_USERNAME}
+  password-secret-ref: ${ROTATE_AUTH_PASSWORD_SECRET_REF}   # per-environment — checked via HTTP Basic Auth, only on the rotation endpoint
+
 secrets:
   provider: ${SECRETS_PROVIDER:file}   # "file" locally, "aws" in dev/test/prod
 
