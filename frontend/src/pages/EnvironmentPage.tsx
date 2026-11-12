@@ -3,6 +3,7 @@ import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
   fetchAccessAudit,
+  fetchConfigInfo,
   fetchConfigSnapshot,
   fetchDeployments,
   fetchEnvironmentSummary,
@@ -66,6 +67,17 @@ function RotateButton({ env }: { env: "dev" | "test" | "prod" }) {
   const [username, setUsername] = useState("");
   const [password, setPassword] = useState("");
 
+  // Which env this exact page load was actually served FROM - every API
+  // call (including the rotate POST) is same-origin, so it always hits
+  // this host's own backend regardless of which client-side route (env
+  // prop) React Router is currently showing. Confirmed live, repeatedly:
+  // clicking Dev/Test/Prod in the sidebar from one environment's hosted
+  // page, then rotating, silently checks the password against the HOST's
+  // own secret, not the one for the route being viewed.
+  const servedFromQuery = useQuery({ queryKey: ["config-info"], queryFn: fetchConfigInfo });
+  const servedFromEnv = servedFromQuery.data?.env;
+  const wrongHost = servedFromEnv != null && servedFromEnv !== env;
+
   const mutation = useMutation({
     mutationFn: () => rotateWriteApiKey(env, username, password),
     onSuccess: () => {
@@ -75,6 +87,16 @@ function RotateButton({ env }: { env: "dev" | "test" | "prod" }) {
       setPassword("");
     },
   });
+
+  if (wrongHost) {
+    return (
+      <div className="tile w-fit max-w-xs rounded-sm p-3 text-xs text-warning">
+        This page is being served from <span className="font-mono">{servedFromEnv}</span>'s own host, so rotating{" "}
+        {envLabel(env)} from here would check the credential against the wrong environment's secret. Open{" "}
+        {envLabel(env)}'s own URL directly to rotate it.
+      </div>
+    );
+  }
 
   if (!formOpen) {
     return (
