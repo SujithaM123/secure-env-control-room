@@ -7,7 +7,7 @@ import org.springframework.core.io.ClassPathResource;
 import org.springframework.http.HttpStatus;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
-import org.springframework.web.bind.annotation.GetMapping;
+import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
@@ -21,11 +21,20 @@ import java.io.IOException;
  * any unmatched path outside /api and /actuator, so React Router can take
  * over and render the right page; a genuinely unknown /api/... path still
  * gets a normal 404 rather than being masked as HTML.
+ *
+ * Not @GetMapping: the servlet container's error dispatch preserves the
+ * original request's method, so a WriteApiKeyFilter 401 on a POST (or any
+ * non-GET write endpoint) lands here as a POST too. A GET-only mapping
+ * here meant that dispatch itself failed with 405 "Allow: GET" - masking
+ * the real 401 behind a wrong status - confirmed live against a write
+ * endpoint called with no credential. No HTTP method restriction here
+ * means every method dispatches correctly, including from the
+ * write-auth filter.
  */
 @RestController
 public class SpaFallbackController implements ErrorController {
 
-    @GetMapping("/error")
+    @RequestMapping("/error")
     public ResponseEntity<byte[]> handleError(HttpServletRequest request) throws IOException {
         Object attribute = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
         String path = attribute != null ? attribute.toString() : "";
