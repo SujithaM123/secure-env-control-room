@@ -43,23 +43,17 @@ async function getJson<T>(path: string): Promise<T> {
 }
 
 /**
- * No credential is attached in JS here - that's intentional, not a gap.
- * The rotation endpoint is gated by HTTP Basic Auth (BasicAuthFilter), and
- * a 401 with WWW-Authenticate: Basic triggers the browser's own native
- * credential prompt; the browser then retries with the Authorization
- * header itself. The real credential never needs to touch frontend code.
- * The other 5 write endpoints (WriteApiKeyFilter, the write-API key) are
- * pipeline-only and never called from this dashboard at all.
+ * Base64-encodes a UTF-8 string for a Basic Auth header. Plain btoa() only
+ * handles Latin1, so this goes through TextEncoder first rather than the
+ * older unescape(encodeURIComponent(...)) trick.
  */
-async function postJson<T>(path: string): Promise<T> {
-  const response = await fetch(`${BASE_URL}${path}`, {
-    method: "POST",
-    headers: { Accept: "application/json" },
+function base64EncodeUtf8(value: string): string {
+  const bytes = new TextEncoder().encode(value);
+  let binary = "";
+  bytes.forEach((byte) => {
+    binary += String.fromCharCode(byte);
   });
-  if (!response.ok) {
-    throw new ApiError(response.status, `${path} responded with ${response.status}`);
-  }
-  return (await response.json()) as T;
+  return btoa(binary);
 }
 
 export const fetchConfigInfo = () => getJson<ConfigInfo>("/api/config-info");
@@ -93,5 +87,28 @@ export const fetchHistory = () => getJson<HistoryRow[]>("/api/history");
 export const fetchHistoryDetail = (commitSha: string) =>
   getJson<HistoryDetail>(`/api/history/${commitSha}`);
 
-export const rotateWriteApiKey = (env: string) =>
-  postJson<RotationResult>(`/api/rotate/write-api-key/${env}`);
+/**
+ * Builds the Authorization: Basic header in JS from an in-page form
+ * (RotateButton) instead of relying on the browser's native Basic Auth
+ * popup - that popup auto-saves and re-sends stale credentials regardless
+ * of what's retyped, and gives no way to show a clear error in the UI.
+ * The server-side check (BasicAuthFilter, reading the password from
+ * Secrets Manager) is unchanged - only how the credential reaches it
+ * changes. On failure, throws with the server's actual response body as
+ * the message (SpaFallbackController now returns the real error text for
+ * /api paths instead of an empty body) rather than a generic one.
+ */
+export async function rotateWriteApiKey(env: string, username: string, password: string): Promise<RotationResult> {
+  const response = await fetch(`${BASE_URL}/api/rotate/write-api-key/${env}`, {
+    method: "POST",
+    headers: {
+      Accept: "application/json",
+      Authorization: `Basic ${base64EncodeUtf8(`${username}:${password}`)}`,
+    },
+  });
+  if (!response.ok) {
+    const text = await response.text().catch(() => "");
+    throw new ApiError(response.status, text || `${response.status} ${response.statusText}`);
+  }
+  return (await response.json()) as RotationResult;
+}

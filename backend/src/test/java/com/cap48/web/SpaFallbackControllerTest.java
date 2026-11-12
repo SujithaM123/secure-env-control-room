@@ -60,6 +60,19 @@ class SpaFallbackControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
     }
 
+    @Test
+    void includesTheRealErrorMessageOnAnApiPathWhenPresent() throws Exception {
+        MockHttpServletRequest request = requestFor("/api/rotate/write-api-key/dev");
+        request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 401);
+        request.setAttribute(RequestDispatcher.ERROR_MESSAGE, "Missing or invalid credentials");
+
+        ResponseEntity<byte[]> response = controller.handleError(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+        assertThat(response.getHeaders().getContentType()).isEqualTo(MediaType.TEXT_PLAIN);
+        assertThat(new String(response.getBody())).isEqualTo("Missing or invalid credentials");
+    }
+
     private MockHttpServletRequest requestFor(String path) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, path);

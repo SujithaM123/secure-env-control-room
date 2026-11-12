@@ -1,4 +1,4 @@
-import type { ReactNode } from "react";
+import { useState, type ReactNode } from "react";
 import { useMutation, useQuery, useQueryClient } from "@tanstack/react-query";
 import {
   ApiError,
@@ -53,30 +53,90 @@ function StatusBadge({ summary }: { summary: EnvironmentSummary }) {
   );
 }
 
+/**
+ * An in-page form, not the browser's native Basic Auth popup. That popup
+ * auto-saves and re-sends stale credentials regardless of what's retyped,
+ * gives no way to show a clear error, and is hard to test - building the
+ * Authorization: Basic header in JS (api.ts) and submitting it on a plain
+ * fetch sidesteps all of that. The server-side check is unchanged.
+ */
 function RotateButton({ env }: { env: "dev" | "test" | "prod" }) {
   const queryClient = useQueryClient();
+  const [formOpen, setFormOpen] = useState(false);
+  const [username, setUsername] = useState("");
+  const [password, setPassword] = useState("");
+
   const mutation = useMutation({
-    mutationFn: () => rotateWriteApiKey(env),
+    mutationFn: () => rotateWriteApiKey(env, username, password),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ["summary", env] });
       queryClient.invalidateQueries({ queryKey: ["rotations", env] });
+      setFormOpen(false);
+      setPassword("");
     },
   });
 
-  return (
-    <div className="flex flex-col gap-2">
+  if (!formOpen) {
+    return (
       <button
         type="button"
-        onClick={() => mutation.mutate()}
-        disabled={mutation.isPending}
-        className="tile w-fit rounded-sm px-3 py-1.5 text-sm font-medium text-text hover:border-accent disabled:opacity-50"
+        onClick={() => setFormOpen(true)}
+        className="tile w-fit rounded-sm px-3 py-1.5 text-sm font-medium text-text hover:border-accent"
       >
-        {mutation.isPending ? "Rotating…" : "Rotate now"}
+        Rotate now
       </button>
+    );
+  }
+
+  return (
+    <form
+      onSubmit={(e) => {
+        e.preventDefault();
+        mutation.mutate();
+      }}
+      className="tile flex max-w-xs flex-col gap-2 rounded-sm p-3"
+    >
+      <p className="text-xs text-text-muted">Enter rotation credentials for {envLabel(env)}</p>
+      <input
+        type="text"
+        placeholder="Username"
+        value={username}
+        onChange={(e) => setUsername(e.target.value)}
+        autoComplete="off"
+        className="rounded-sm border border-border bg-bg px-2 py-1 text-sm text-text"
+      />
+      <input
+        type="password"
+        placeholder="Password"
+        value={password}
+        onChange={(e) => setPassword(e.target.value)}
+        autoComplete="off"
+        className="rounded-sm border border-border bg-bg px-2 py-1 text-sm text-text"
+      />
+      <div className="flex gap-2">
+        <button
+          type="submit"
+          disabled={mutation.isPending}
+          className="rounded-sm bg-accent px-3 py-1.5 text-sm font-medium text-bg disabled:opacity-50"
+        >
+          {mutation.isPending ? "Rotating…" : "Confirm rotate"}
+        </button>
+        <button
+          type="button"
+          onClick={() => {
+            setFormOpen(false);
+            setPassword("");
+            mutation.reset();
+          }}
+          className="rounded-sm border border-border px-3 py-1.5 text-sm text-text-muted hover:text-text"
+        >
+          Cancel
+        </button>
+      </div>
       {mutation.isError && (
         <p className="text-xs text-danger">
-          {mutation.error instanceof ApiError && mutation.error.status === 401
-            ? "Not authorized — this action requires credentials. If your browser didn't prompt you, or you cancelled/mistyped them, click Rotate now again."
+          {mutation.error instanceof ApiError
+            ? `${mutation.error.status}: ${mutation.error.message}`
             : "Rotation failed — see console for details."}
         </p>
       )}
@@ -85,7 +145,7 @@ function RotateButton({ env }: { env: "dev" | "test" | "prod" }) {
           Rotated — new fingerprint <Fingerprint value={mutation.data.newFingerprint} />
         </p>
       )}
-    </div>
+    </form>
   );
 }
 

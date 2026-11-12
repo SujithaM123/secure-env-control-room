@@ -11,6 +11,7 @@ import org.springframework.web.bind.annotation.RequestMapping;
 import org.springframework.web.bind.annotation.RestController;
 
 import java.io.IOException;
+import java.nio.charset.StandardCharsets;
 
 /**
  * React Router owns client-side routes like /compare and /history/<sha> -
@@ -37,6 +38,13 @@ import java.io.IOException;
  * unmatched routes, it also happens for WriteApiKeyFilter's 401, and
  * hardcoding 404 here silently turned every such 401 into a 404 instead -
  * confirmed live immediately after fixing the 405 above.
+ *
+ * For /api and /actuator paths, the real error message (read from
+ * {@link RequestDispatcher#ERROR_MESSAGE} - whatever a filter's
+ * sendError(status, message) or a controller's ResponseStatusException
+ * reason actually said) is returned as the plain-text body when present,
+ * instead of an empty one - so a caller (the rotation login form, for
+ * one) can show the real reason a request failed, not a generic one.
  */
 @RestController
 public class SpaFallbackController implements ErrorController {
@@ -50,6 +58,12 @@ public class SpaFallbackController implements ErrorController {
         int status = statusAttribute instanceof Integer ? (Integer) statusAttribute : HttpStatus.NOT_FOUND.value();
 
         if (path.startsWith("/api") || path.startsWith("/actuator")) {
+            Object messageAttribute = request.getAttribute(RequestDispatcher.ERROR_MESSAGE);
+            String message = messageAttribute != null ? messageAttribute.toString() : null;
+            if (message != null && !message.isBlank()) {
+                return ResponseEntity.status(status).contentType(MediaType.TEXT_PLAIN)
+                        .body(message.getBytes(StandardCharsets.UTF_8));
+            }
             return ResponseEntity.status(status).build();
         }
 
