@@ -1,3 +1,4 @@
+import type { ReactNode } from "react";
 import { useQuery } from "@tanstack/react-query";
 import {
   fetchAccessAudit,
@@ -19,16 +20,33 @@ function validationTone(status: string): StatusTone {
   return "neutral";
 }
 
+function KpiCard({ label, children }: { label: string; children: ReactNode }) {
+  return (
+    <div className="rounded-sm border border-border p-3">
+      <p className="mb-1 text-xs uppercase tracking-wide text-text-muted">{label}</p>
+      {children}
+    </div>
+  );
+}
+
 function StatusBadge({ summary }: { summary: EnvironmentSummary }) {
   return (
-    <div className="flex flex-wrap items-center gap-6">
-      <StatusDot tone={validationTone(summary.latestValidationStatus)} label={`Validation: ${summary.latestValidationStatus}`} />
-      <StatusDot tone={summary.driftDetected ? "danger" : "success"} label={summary.driftDetected ? "Drift detected" : "No drift"} />
-      <StatusDot
-        tone={summary.rotationOverdue ? "danger" : "success"}
-        label={summary.secretAgeDays == null ? "Never rotated" : `Secret age: ${summary.secretAgeDays}d`}
-      />
-      <span className="font-mono text-sm text-text-muted">Health score: {summary.healthScore}</span>
+    <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(160px, 1fr))" }}>
+      <KpiCard label="Validation">
+        <StatusDot tone={validationTone(summary.latestValidationStatus)} label={summary.latestValidationStatus} />
+      </KpiCard>
+      <KpiCard label="Drift">
+        <StatusDot tone={summary.driftDetected ? "danger" : "success"} label={summary.driftDetected ? "Detected" : "None"} />
+      </KpiCard>
+      <KpiCard label="Rotation">
+        <StatusDot
+          tone={summary.rotationOverdue ? "danger" : "success"}
+          label={summary.secretAgeDays == null ? "Never rotated" : `${summary.secretAgeDays}d ago`}
+        />
+      </KpiCard>
+      <KpiCard label="Health score">
+        <span className="font-mono text-lg text-text">{summary.healthScore}</span>
+      </KpiCard>
     </div>
   );
 }
@@ -52,20 +70,18 @@ export function EnvironmentPage({ env }: { env: "dev" | "test" | "prod" }) {
         {snapshotQuery.isError ? (
           <p className="text-sm text-text-muted">No config snapshot recorded yet.</p>
         ) : snapshotQuery.data ? (
-          <div className="flex flex-col gap-2">
+          <div className="flex flex-col gap-3">
             <p className="text-xs text-text-muted">
               Captured <Fingerprint value={snapshotQuery.data.capturedAt} />
             </p>
-            <table className="w-full text-sm">
-              <tbody>
-                {Object.entries(snapshotQuery.data.settings).map(([key, value]) => (
-                  <tr key={key} className="border-t border-border">
-                    <td className="py-1 pr-4 text-text-muted">{key}</td>
-                    <td className="py-1 font-mono text-text">{String(value)}</td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+            <div className="grid gap-3" style={{ gridTemplateColumns: "repeat(auto-fit, minmax(200px, 1fr))" }}>
+              {Object.entries(snapshotQuery.data.settings).map(([key, value]) => (
+                <div key={key} className="rounded-sm border border-border p-2.5">
+                  <p className="mb-1 text-xs text-text-muted">{key}</p>
+                  <p className="break-all font-mono text-sm text-text">{String(value)}</p>
+                </div>
+              ))}
+            </div>
           </div>
         ) : (
           <p className="text-sm text-text-muted">Loading…</p>

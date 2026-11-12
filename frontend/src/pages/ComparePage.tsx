@@ -1,15 +1,27 @@
 import { useQuery } from "@tanstack/react-query";
-import { fetchAllEnvironmentSummaries, fetchDriftMatrix, fetchScanFindings } from "../lib/api";
+import { fetchAllEnvironmentSummaries, fetchDeployments, fetchDriftMatrix, fetchScanFindings } from "../lib/api";
 import { Tile } from "../components/Tile";
 import { Fingerprint } from "../components/Fingerprint";
 import { DriftHeatmap } from "../components/charts/DriftHeatmap";
 import { HealthGauges } from "../components/charts/HealthGauges";
 import { SecretAgeBarChart } from "../components/charts/SecretAgeBarChart";
+import { HealthCompositionDonuts } from "../components/charts/HealthCompositionDonuts";
+import { DeploymentFrequencyChart } from "../components/charts/DeploymentFrequencyChart";
+import { ENV_IDS } from "../lib/env";
+
+const CHART_GRID_STYLE = { gridTemplateColumns: "repeat(auto-fit, minmax(320px, 1fr))" };
 
 export function ComparePage() {
   const summariesQuery = useQuery({ queryKey: ["summaries"], queryFn: fetchAllEnvironmentSummaries });
   const driftQuery = useQuery({ queryKey: ["drift-matrix"], queryFn: fetchDriftMatrix });
   const scanFindingsQuery = useQuery({ queryKey: ["scan-findings"], queryFn: fetchScanFindings });
+  const deploymentCountsQuery = useQuery({
+    queryKey: ["deployment-counts"],
+    queryFn: async () => {
+      const perEnv = await Promise.all(ENV_IDS.map((env) => fetchDeployments(env)));
+      return ENV_IDS.map((env, i) => ({ env, count: perEnv[i].length }));
+    },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -19,12 +31,22 @@ export function ComparePage() {
         {driftQuery.data ? <DriftHeatmap matrix={driftQuery.data} /> : <p className="text-sm text-text-muted">Loading…</p>}
       </Tile>
 
-      <div className="grid gap-6 lg:grid-cols-2">
+      <div className="grid gap-6" style={CHART_GRID_STYLE}>
         <Tile title="Health by environment">
           {summariesQuery.data ? <HealthGauges summaries={summariesQuery.data} /> : <p className="text-sm text-text-muted">Loading…</p>}
         </Tile>
+        <Tile title="Health score composition">
+          {summariesQuery.data ? <HealthCompositionDonuts summaries={summariesQuery.data} /> : <p className="text-sm text-text-muted">Loading…</p>}
+        </Tile>
         <Tile title="Secret age by environment">
           {summariesQuery.data ? <SecretAgeBarChart summaries={summariesQuery.data} /> : <p className="text-sm text-text-muted">Loading…</p>}
+        </Tile>
+        <Tile title="Deployment frequency by environment">
+          {deploymentCountsQuery.data ? (
+            <DeploymentFrequencyChart counts={deploymentCountsQuery.data} />
+          ) : (
+            <p className="text-sm text-text-muted">Loading…</p>
+          )}
         </Tile>
       </div>
 

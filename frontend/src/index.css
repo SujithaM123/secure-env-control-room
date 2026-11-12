@@ -49,14 +49,17 @@ body {
   font-family: var(--font-sans);
 }
 
-.font-mono {
-  font-family: var(--font-mono);
-}
-
-/* Flat tiles — 1px border, no shadow, no blur, per the Signal spec */
-.tile {
-  background-color: var(--color-surface);
-  border: 1px solid var(--color-border);
+/* .font-mono is unnecessary here — Tailwind already generates it from
+   @theme's --font-mono. .tile is wrapped in @layer components so Tailwind's
+   own utilities (e.g. border-l-0 on the sidebar) still win over it, per
+   normal cascade-layer precedence — plain unlayered CSS would otherwise
+   always beat a layered utility regardless of source order. */
+@layer components {
+  /* Flat tiles — 1px border, no shadow, no blur, per the Signal spec */
+  .tile {
+    background-color: var(--color-surface);
+    border: 1px solid var(--color-border);
+  }
 }
 
 ::selection {

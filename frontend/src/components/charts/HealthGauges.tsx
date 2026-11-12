@@ -2,6 +2,7 @@ import ReactECharts from "echarts-for-react";
 import { useChartColors } from "../../lib/useChartColors";
 import type { EnvironmentSummary } from "../../types/api";
 import { envLabel } from "../../lib/env";
+import { healthTone } from "../../lib/health";
 
 export function HealthGauges({ summaries }: { summaries: EnvironmentSummary[] }) {
   const colors = useChartColors();
@@ -16,7 +17,7 @@ export function HealthGauges({ summaries }: { summaries: EnvironmentSummary[] })
       endAngle: -20,
       min: 0,
       max: 100,
-      progress: { show: true, width: 10, itemStyle: { color: gaugeColor(summary.healthScore, colors) } },
+      progress: { show: true, width: 10, itemStyle: { color: colors[toneColorKey(summary.healthScore)] } },
       axisLine: { lineStyle: { width: 10, color: [[1, colors.border]] } },
       pointer: { show: false },
       axisTick: { show: false },
@@ -43,8 +44,7 @@ export function HealthGauges({ summaries }: { summaries: EnvironmentSummary[] })
   return <ReactECharts option={option} style={{ height: 220 }} />;
 }
 
-function gaugeColor(score: number, colors: ReturnType<typeof useChartColors>): string {
-  if (score >= 70) return colors.success;
-  if (score >= 40) return colors.warning;
-  return colors.danger;
+function toneColorKey(score: number): "success" | "warning" | "danger" {
+  const tone = healthTone(score);
+  return tone === "neutral" ? "danger" : tone;
 }
