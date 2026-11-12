@@ -50,6 +50,16 @@ class SpaFallbackControllerTest {
         assertThat(response.getStatusCode()).isEqualTo(HttpStatus.NOT_FOUND);
     }
 
+    @Test
+    void preservesA401FromWriteApiKeyFilterOnAnApiPathInsteadOfMaskingItAs404() throws Exception {
+        MockHttpServletRequest request = requestFor("/api/deployments");
+        request.setAttribute(RequestDispatcher.ERROR_STATUS_CODE, 401);
+
+        ResponseEntity<byte[]> response = controller.handleError(request);
+
+        assertThat(response.getStatusCode()).isEqualTo(HttpStatus.UNAUTHORIZED);
+    }
+
     private MockHttpServletRequest requestFor(String path) {
         MockHttpServletRequest request = new MockHttpServletRequest();
         request.setAttribute(RequestDispatcher.ERROR_REQUEST_URI, path);

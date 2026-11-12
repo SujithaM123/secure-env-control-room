@@ -30,22 +30,32 @@ import java.io.IOException;
  * endpoint called with no credential. No HTTP method restriction here
  * means every method dispatches correctly, including from the
  * write-auth filter.
+ *
+ * For /api and /actuator paths, the original status code (read from
+ * {@link RequestDispatcher#ERROR_STATUS_CODE}) is preserved rather than
+ * hardcoded to 404 - that dispatch doesn't only happen for genuinely
+ * unmatched routes, it also happens for WriteApiKeyFilter's 401, and
+ * hardcoding 404 here silently turned every such 401 into a 404 instead -
+ * confirmed live immediately after fixing the 405 above.
  */
 @RestController
 public class SpaFallbackController implements ErrorController {
 
     @RequestMapping("/error")
     public ResponseEntity<byte[]> handleError(HttpServletRequest request) throws IOException {
-        Object attribute = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
-        String path = attribute != null ? attribute.toString() : "";
+        Object pathAttribute = request.getAttribute(RequestDispatcher.ERROR_REQUEST_URI);
+        String path = pathAttribute != null ? pathAttribute.toString() : "";
+
+        Object statusAttribute = request.getAttribute(RequestDispatcher.ERROR_STATUS_CODE);
+        int status = statusAttribute instanceof Integer ? (Integer) statusAttribute : HttpStatus.NOT_FOUND.value();
 
         if (path.startsWith("/api") || path.startsWith("/actuator")) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(status).build();
         }
 
         ClassPathResource indexHtml = new ClassPathResource("static/index.html");
         if (!indexHtml.exists()) {
-            return ResponseEntity.notFound().build();
+            return ResponseEntity.status(status).build();
         }
         byte[] body = indexHtml.getInputStream().readAllBytes();
         return ResponseEntity.status(HttpStatus.OK).contentType(MediaType.TEXT_HTML).body(body);
