@@ -89,7 +89,6 @@ jobs:
     name: Drift Check
     needs: validate
     runs-on: ubuntu-latest
-    continue-on-error: true
     steps:
       - name: Checkout code
         uses: actions/checkout@v4
@@ -124,7 +123,7 @@ jobs:
 
   build:
     name: Build
-    needs: validate
+    needs: [validate, drift]
     runs-on: ubuntu-latest
     steps:
       - name: Checkout code
